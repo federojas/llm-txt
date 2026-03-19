@@ -99,6 +99,33 @@ npm run dev
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Local Production Build
+
+To test the production build locally:
+
+```bash
+# Build for production
+npm run build
+
+# Start production server
+npm start
+
+# Open http://localhost:3000
+```
+
+Or use Docker:
+
+```bash
+# Using Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
 ### Environment Variables
 
 No environment variables are required for basic functionality. The application works out of the box.
