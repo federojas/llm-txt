@@ -31,12 +31,14 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.details || data.error || "Failed to generate");
+        throw new Error(
+          data.error?.details || data.error?.message || "Failed to generate"
+        );
       }
 
       setResult({
-        content: data.content,
-        stats: data.stats,
+        content: data.data.content,
+        stats: data.data.stats,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
