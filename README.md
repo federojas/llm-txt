@@ -1,10 +1,12 @@
 # llms.txt Generator
 
+> **Live Demo**: [your-app.vercel.app](#) • **Specification**: [llmstxt.org](https://llmstxt.org/)
+
 An automated tool that generates [llms.txt](https://llmstxt.org/) files for any website. Help Large Language Models better understand and interact with your website's content.
 
 ## 🎯 What is llms.txt?
 
-llms.txt is a proposed standard for providing structured information about websites to Large Language Models. Similar to `robots.txt` for search engines, `llms.txt` helps AI systems understand your site's structure and key content, improving their ability to provide accurate information about your site.
+llms.txt is a proposed standard for providing structured information about websites to Large Language Models. Similar to `robots.txt` for search engines, `llms.txt` helps AI systems understand your site's structure and key content.
 
 ## ✨ Features
 
@@ -16,215 +18,83 @@ llms.txt is a proposed standard for providing structured information about websi
 - **Copy & Download**: Easy export options for immediate use
 - **Responsive Design**: Works seamlessly on desktop and mobile devices
 
-## 🏗️ Architecture
-
-### Tech Stack
-
-- **Frontend**: Next.js 14 (App Router), React 18, TypeScript
-- **Styling**: Tailwind CSS v4
-- **Crawling**: Cheerio for HTML parsing, native Fetch API
-- **Validation**: Zod for runtime type safety
-- **Testing**: Vitest for unit tests
-- **Code Quality**: ESLint, Prettier, Husky pre-commit hooks
-
-### Project Structure
-
-```
-llm-txt/
-├── app/
-│   ├── api/generate/      # API endpoint for crawling and generation
-│   ├── layout.tsx          # Root layout with metadata
-│   └── page.tsx            # Main application page
-├── components/
-│   ├── url-input.tsx       # URL input form with presets
-│   ├── loading-state.tsx   # Loading indicator
-│   └── result-preview.tsx  # Preview with edit/copy/download
-├── lib/
-│   ├── crawler/            # Website crawling logic
-│   ├── parser/             # HTML and sitemap parsing
-│   │   ├── html.ts         # Metadata extraction
-│   │   └── sitemap.ts      # Sitemap.xml parsing
-│   ├── generator/          # llms.txt generation
-│   ├── validation/         # Zod schemas with SSRF protection
-│   └── utils/              # URL utilities
-├── tests/
-│   ├── unit/               # Unit tests for core functions
-│   └── integration/        # Integration tests
-└── types/                  # TypeScript type definitions
-```
-
-### Key Design Decisions
-
-1. **Sitemap-First Approach**: We prioritize parsing sitemap.xml when available, as it typically contains the most important pages and is much faster than crawling.
-
-2. **BFS Traversal**: When crawling is needed, we use Breadth-First Search to discover pages at each depth level systematically.
-
-3. **SSRF Protection**: All URLs are validated to prevent requests to:
-   - localhost/127.0.0.1
-   - Private networks (10.x.x.x, 192.168.x.x, 172.16-31.x.x)
-   - Cloud metadata endpoints (169.254.169.254)
-   - .local domains
-
-4. **Rate Limiting**: Configurable concurrency (default: 5) prevents overwhelming target servers.
-
-5. **Page Classification**: URLs are automatically classified by pattern matching (e.g., `/docs/*` → documentation).
-
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Node.js 18+
 - npm, yarn, or pnpm
 
-### Installation
-
-1. Clone the repository:
+### Local Setup
 
 ```bash
+# Clone the repository
 git clone https://github.com/yourusername/llm-txt.git
 cd llm-txt
-```
 
-2. Install dependencies:
-
-```bash
+# Install dependencies
 npm install
-```
 
-3. Run the development server:
-
-```bash
+# Run development server
 npm run dev
-```
-
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Local Production Build
-
-To test the production build locally:
-
-```bash
-# Build for production
-npm run build
-
-# Start production server
-npm start
 
 # Open http://localhost:3000
 ```
 
-Or use Docker:
+### Using the Tool
 
-```bash
-# Using Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop
-docker-compose down
-```
-
-### Environment Variables
-
-No environment variables are required for basic functionality. The application works out of the box.
-
-## 🧪 Testing
-
-### Run All Tests
-
-```bash
-npm run test
-```
-
-### Run Tests in Watch Mode
-
-```bash
-npm run test:ui
-```
-
-### Generate Coverage Report
-
-```bash
-npm run test:coverage
-```
-
-### Type Checking
-
-```bash
-npm run type-check
-```
-
-## 🎨 Code Quality
-
-### Linting
-
-```bash
-npm run lint        # Check for issues
-npm run lint:fix    # Auto-fix issues
-```
-
-### Formatting
-
-```bash
-npm run format        # Format all files
-npm run format:check  # Check formatting
-```
-
-### Pre-commit Hooks
-
-Husky is configured to run checks before each commit:
-
-- ESLint
-- Prettier format check
-- TypeScript type checking
+1. **Enter a URL**: Input any public website URL (e.g., `https://nextjs.org`)
+2. **Choose preset**: Select "Quick" (25 pages) or "Thorough" (100 pages)
+3. **Generate**: Click "Generate llms.txt" and wait for crawling to complete
+4. **Review**: Preview the generated file and edit if needed
+5. **Download**: Click "Download" or "Copy" to get your llms.txt file
 
 ## 📦 Deployment
 
 ### Deploy to Vercel (Recommended)
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR-USERNAME/llm-txt)
+
+Or manually:
+
 1. Push your code to GitHub
+2. Go to [vercel.com](https://vercel.com)
+3. Import your repository
+4. Click "Deploy" (zero configuration needed!)
 
-2. Import your repository on [Vercel](https://vercel.com):
-   - Connect your GitHub account
-   - Select the repository
-   - Click "Deploy"
+**That's it!** Vercel will automatically:
 
-3. Vercel will automatically:
-   - Install dependencies
-   - Run build
-   - Deploy to a production URL
+- Install dependencies
+- Run build
+- Deploy to production
+- Set up auto-deployments on every push
 
-### Deploy to Other Platforms
-
-The app is a standard Next.js application and can be deployed to:
-
-- Netlify
-- Railway
-- Render
-- AWS Amplify
-- Self-hosted with Docker
-
-#### Docker Deployment
-
-**Using Docker Compose (Recommended):**
+### Docker Deployment
 
 ```bash
+# Using Docker Compose
 docker-compose up -d
-```
 
-**Using Docker directly:**
-
-```bash
-# Build image
+# Or using Docker directly
 docker build -t llms-txt-generator .
-
-# Run container
 docker run -p 3000:3000 llms-txt-generator
 ```
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
+## 🧪 Testing & Development
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Type check
+npm run type-check
+
+# Lint code
+npm run lint
+```
 
 ## 📖 API Documentation
 
@@ -232,20 +102,16 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
 
 Generate an llms.txt file for a given URL.
 
-**Request Body:**
+**Request:**
 
 ```json
 {
   "url": "https://example.com",
-  "preset": "quick", // "quick" | "thorough" | "custom" (optional)
-  "maxPages": 50, // optional, overrides preset
-  "maxDepth": 3, // optional, overrides preset
-  "timeout": 10000, // optional, ms per request
-  "concurrency": 5 // optional, parallel requests
+  "preset": "quick" // "quick" | "thorough"
 }
 ```
 
-**Response (Success):**
+**Response:**
 
 ```json
 {
@@ -258,61 +124,65 @@ Generate an llms.txt file for a given URL.
 }
 ```
 
-**Response (Error):**
+See [ARCHITECTURE.md](./ARCHITECTURE.md#api-layer) for full API documentation.
 
-```json
-{
-  "error": "Failed to generate llms.txt",
-  "details": "Error message here"
-}
-```
+## 🏗️ Architecture
+
+**Tech Stack:**
+
+- Next.js 14 (App Router) + TypeScript
+- Tailwind CSS v4
+- Cheerio for HTML parsing
+- Zod for validation
+- Vitest for testing
+
+**Key Features:**
+
+- Sitemap-first crawling strategy (10-100x faster)
+- BFS fallback for sites without sitemaps
+- SSRF protection (blocks localhost, private networks, cloud metadata)
+- Queue-based concurrent processing
+- Comprehensive test suite (39 unit tests)
+
+📚 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design, technology decisions, and scaling considerations.
 
 ## 🔒 Security
 
 - **SSRF Protection**: Validates all URLs to prevent internal network access
-- **Rate Limiting**: Prevents server overload with configurable concurrency
-- **Timeout Protection**: All requests have timeouts to prevent hanging
 - **Input Validation**: Zod schemas validate all user input
-- **No Stored Data**: No user data or generated content is stored on the server
+- **Rate Limiting**: Configurable concurrency prevents server overload
+- **Timeout Protection**: All requests have timeouts to prevent hanging
+- **No Stored Data**: No user data or generated content is stored
 
-## 🧩 How It Works
+## 📝 Project Structure
 
-1. **URL Input**: User enters a website URL
-2. **Discovery**: System attempts to find sitemap.xml
-3. **Crawling**:
-   - If sitemap exists: Parse and extract URLs
-   - If no sitemap: BFS crawl from homepage
-4. **Metadata Extraction**: Extract title, description, and links from each page
-5. **Classification**: Categorize pages by URL patterns
-6. **Generation**: Build llms.txt structure following the specification
-7. **Output**: Display preview with edit/copy/download options
+```
+llm-txt/
+├── app/
+│   ├── api/generate/       # API endpoint
+│   └── page.tsx            # Main UI
+├── components/             # React components
+├── lib/
+│   ├── crawler/            # Crawling engine
+│   ├── parser/             # HTML/sitemap parsing
+│   ├── generator/          # llms.txt generation
+│   ├── validation/         # Input validation + SSRF
+│   └── utils/              # Utilities
+├── tests/unit/             # Test suite
+└── types/                  # TypeScript definitions
+```
 
-## 🤝 Contributing
+## 📸 Screenshots & Demo
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License.
+> 🚧 TODO Screenshots and demo video will be added after deployment
 
 ## 🔗 Resources
 
 - [llms.txt Specification](https://llmstxt.org/)
 - [llms.txt Examples](https://llmstxt.site/)
 - [Next.js Documentation](https://nextjs.org/docs)
+- [Architecture Documentation](./ARCHITECTURE.md)
 
-## 📸 Screenshots
+## 📄 License
 
-_TODO: Add screenshots after deployment_
-
-## 🙏 Acknowledgments
-
-- [llmstxt.org](https://llmstxt.org) for the specification
-- Next.js team for the amazing framework
-- Vercel for hosting platform
+This project is licensed under the MIT License.
