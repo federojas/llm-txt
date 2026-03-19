@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { crawlOptionsSchema } from "@/lib/validation/schemas";
+import { crawlOptionsSchema } from "@/lib/api/validation";
 
 // Request DTO
 export const generateRequestSchema = crawlOptionsSchema;

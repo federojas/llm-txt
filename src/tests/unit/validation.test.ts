@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { urlSchema, crawlConfigSchema } from "@/lib/validation/schemas";
+import { urlSchema, crawlConfigSchema } from "@/lib/api/validation";
 
 describe("Validation Schemas", () => {
   describe("urlSchema", () => {
