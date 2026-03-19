@@ -1,6 +1,6 @@
 # llms.txt Generator
 
-> **Live Demo**: [your-app.vercel.app](#) • **Specification**: [llmstxt.org](https://llmstxt.org/)
+> **Live Demo**: [llm-txt-nine.vercel.app](https://llm-txt-nine.vercel.app/) • **Specification**: [llmstxt.org](https://llmstxt.org/)
 
 An automated tool that generates [llms.txt](https://llmstxt.org/) files for any website. Help Large Language Models better understand and interact with your website's content.
 
@@ -10,8 +10,10 @@ llms.txt is a proposed standard for providing structured information about websi
 
 ## ✨ Features
 
+- **AI-Powered Descriptions**: Uses Groq (Llama 3.3 70B) to generate concise, high-quality page descriptions
 - **Automated Crawling**: Intelligently crawls websites using sitemap.xml or BFS traversal
 - **Smart Classification**: Automatically categorizes pages (docs, API, guides, blog, etc.)
+- **Language Filtering**: Detects and prefers English content, skips language variants
 - **SSRF Protection**: Built-in security to prevent Server-Side Request Forgery attacks
 - **Configurable Depth**: Choose between Quick (25 pages) or Thorough (100 pages) crawling
 - **Real-time Preview**: Edit the generated llms.txt before downloading
@@ -35,10 +37,17 @@ cd llm-txt
 # Install dependencies
 npm install
 
+# Get your Groq API key (required for AI descriptions)
+# 1. Sign up at https://console.groq.com (free, no credit card required)
+# 2. Get your API key from https://console.groq.com/keys
+# 3. Configure environment variables:
+cp .env.example .env
+# Edit .env and add: GROQ_API_KEY=your_key_here
+
 # Run development server
 npm run dev
 
-# Open http://localhost:3000
+# Open http://localhost:3000 (or visit https://llm-txt-nine.vercel.app/)
 ```
 
 ### Using the Tool
@@ -60,7 +69,8 @@ Or manually:
 1. Push your code to GitHub
 2. Go to [vercel.com](https://vercel.com)
 3. Import your repository
-4. Click "Deploy" (zero configuration needed!)
+4. **Add environment variable**: `GROQ_API_KEY` (get it from [console.groq.com/keys](https://console.groq.com/keys))
+5. Click "Deploy"
 
 **That's it!** Vercel will automatically:
 
@@ -72,13 +82,35 @@ Or manually:
 ### Docker Deployment
 
 ```bash
+# Set your Groq API key
+export GROQ_API_KEY=your_key_here
+
 # Using Docker Compose
 docker-compose up -d
 
 # Or using Docker directly
 docker build -t llms-txt-generator .
-docker run -p 3000:3000 llms-txt-generator
+docker run -p 3000:3000 -e GROQ_API_KEY=$GROQ_API_KEY llms-txt-generator
 ```
+
+## 🤖 AI-Powered Descriptions
+
+The generator uses [Groq](https://groq.com) with Llama 3.3 70B to create high-quality page descriptions:
+
+**Features:**
+
+- Generates concise 15-word summaries for each page
+- Creates 2-3 sentence business summaries for homepages
+- Batch processes pages with rate limiting (5 parallel, 100ms delay)
+- Falls back to heuristic descriptions without API key (for development/testing)
+
+**Why Groq?**
+
+- **Free tier**: 14,400 requests/day (Llama 3.3 70B)
+- **Blazing fast**: ~100 tokens/sec inference speed
+- **No credit card**: Free signup at [console.groq.com](https://console.groq.com)
+- **High quality**: State-of-the-art open-source models
+- **Cost effective**: $0.59/million tokens vs Claude $8-15/million
 
 ## 🧪 Testing & Development
 
@@ -132,6 +164,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#api-layer) for full API documentation.
 
 - Next.js 14 (App Router) + TypeScript
 - Tailwind CSS v4
+- Groq (Llama 3.3 70B) for AI descriptions
 - Cheerio for HTML parsing
 - Zod for validation
 - Vitest for testing
@@ -174,7 +207,9 @@ llm-txt/
 
 ## 📸 Screenshots & Demo
 
-> 🚧 TODO Screenshots and demo video will be added after deployment
+TODO add demo video
+
+Try it live at [llm-txt-nine.vercel.app](https://llm-txt-nine.vercel.app/)
 
 ## 🔗 Resources
 
