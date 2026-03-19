@@ -1,0 +1,136 @@
+import { describe, it, expect } from "vitest";
+import {
+  normalizeUrl,
+  isInternalUrl,
+  toAbsoluteUrl,
+  matchesPattern,
+  extractDomain,
+  getUrlDepth,
+  classifyUrl,
+} from "@/lib/utils/url";
+
+describe("URL Utilities", () => {
+  describe("normalizeUrl", () => {
+    it("should remove trailing slashes", () => {
+      expect(normalizeUrl("https://example.com/")).toBe("https://example.com/");
+      expect(normalizeUrl("https://example.com/path/")).toBe(
+        "https://example.com/path"
+      );
+    });
+
+    it("should remove hash fragments", () => {
+      expect(normalizeUrl("https://example.com/page#section")).toBe(
+        "https://example.com/page"
+      );
+    });
+
+    it("should remove tracking parameters", () => {
+      expect(normalizeUrl("https://example.com?utm_source=test&page=1")).toBe(
+        "https://example.com/?page=1"
+      );
+    });
+
+    it("should sort query parameters", () => {
+      expect(normalizeUrl("https://example.com?z=1&a=2")).toBe(
+        "https://example.com/?a=2&z=1"
+      );
+    });
+  });
+
+  describe("isInternalUrl", () => {
+    it("should identify internal URLs", () => {
+      expect(
+        isInternalUrl("https://example.com/about", "https://example.com")
+      ).toBe(true);
+    });
+
+    it("should identify external URLs", () => {
+      expect(
+        isInternalUrl("https://other.com/page", "https://example.com")
+      ).toBe(false);
+    });
+
+    it("should handle relative URLs", () => {
+      expect(isInternalUrl("/about", "https://example.com")).toBe(true);
+    });
+  });
+
+  describe("toAbsoluteUrl", () => {
+    it("should convert relative URLs to absolute", () => {
+      expect(toAbsoluteUrl("/about", "https://example.com")).toBe(
+        "https://example.com/about"
+      );
+    });
+
+    it("should leave absolute URLs unchanged", () => {
+      expect(
+        toAbsoluteUrl("https://example.com/about", "https://example.com")
+      ).toBe("https://example.com/about");
+    });
+  });
+
+  describe("matchesPattern", () => {
+    it("should match URL patterns", () => {
+      expect(matchesPattern("https://example.com/docs/api", ["/docs/*"])).toBe(
+        true
+      );
+      expect(matchesPattern("https://example.com/blog/post", ["/docs/*"])).toBe(
+        false
+      );
+    });
+  });
+
+  describe("extractDomain", () => {
+    it("should extract domain from URL", () => {
+      expect(extractDomain("https://example.com/path")).toBe("example.com");
+      expect(extractDomain("https://subdomain.example.com")).toBe(
+        "subdomain.example.com"
+      );
+    });
+  });
+
+  describe("getUrlDepth", () => {
+    it("should calculate URL depth", () => {
+      expect(getUrlDepth("https://example.com/", "https://example.com")).toBe(
+        0
+      );
+      expect(
+        getUrlDepth("https://example.com/docs", "https://example.com")
+      ).toBe(1);
+      expect(
+        getUrlDepth("https://example.com/docs/api", "https://example.com")
+      ).toBe(2);
+    });
+
+    it("should return Infinity for external URLs", () => {
+      expect(getUrlDepth("https://other.com/page", "https://example.com")).toBe(
+        Infinity
+      );
+    });
+  });
+
+  describe("classifyUrl", () => {
+    it("should classify documentation URLs", () => {
+      expect(classifyUrl("https://example.com/docs/guide")).toBe(
+        "documentation"
+      );
+    });
+
+    it("should classify API URLs", () => {
+      expect(classifyUrl("https://example.com/api/reference")).toBe("api");
+    });
+
+    it("should classify blog URLs", () => {
+      expect(classifyUrl("https://example.com/blog/post")).toBe("blog");
+    });
+
+    it("should classify homepage", () => {
+      expect(classifyUrl("https://example.com/")).toBe("homepage");
+      expect(classifyUrl("https://example.com")).toBe("homepage");
+    });
+
+    it("should classify unknown URLs as other", () => {
+      expect(classifyUrl("https://example.com/random")).toBe("other");
+    });
+  });
+});
