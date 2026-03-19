@@ -1,10 +1,19 @@
 import { CrawlConfig, PageMetadata, CrawlProgress } from "@/types";
 import { extractMetadata, isIndexable } from "../parser/html";
-import { findSitemap, parseSitemap } from "../parser/sitemap";
-import { normalizeUrl, getUrlDepth } from "../../utils/url";
-import { httpClient } from "../../utils/http-client";
+import { getUrlDepth, isLanguageVariant } from "../logic/url-classification";
+import { normalizeUrl } from "../../shared/url-utils";
+import { httpClient } from "../../infrastructure/clients/http-client";
+import {
+  discoverSitemap,
+  fetchAndParseSitemap,
+} from "../../infrastructure/clients/sitemap-client";
+import { ICrawlerService } from "../interfaces/crawler-service.interface";
 
-export class Crawler {
+/**
+ * Crawler Service (Domain Layer)
+ * Orchestrates website crawling with BFS strategy
+ */
+export class CrawlerService implements ICrawlerService {
   private config: CrawlConfig;
   private visited = new Set<string>();
   private queue: Array<{ url: string; depth: number }> = [];
@@ -66,7 +75,7 @@ export class Crawler {
    * Try to crawl from sitemap
    */
   private async crawlFromSitemap(): Promise<boolean> {
-    const sitemapUrl = await findSitemap(this.config.url);
+    const sitemapUrl = await discoverSitemap(this.config.url);
     if (!sitemapUrl) return false;
 
     this.updateProgress({
@@ -77,7 +86,10 @@ export class Crawler {
       totalPages: this.config.maxPages,
     });
 
-    const sitemapUrls = await parseSitemap(sitemapUrl, this.config.maxPages);
+    const sitemapUrls = await fetchAndParseSitemap(
+      sitemapUrl,
+      this.config.maxPages
+    );
     if (sitemapUrls.length === 0) return false;
 
     // Process URLs from sitemap in batches
@@ -129,6 +141,11 @@ export class Crawler {
     url: string,
     depth: number
   ): Promise<PageMetadata | null> {
+    // Skip language variant URLs (like /intl/ar/, /intl/ALL_bg/)
+    if (isLanguageVariant(url)) {
+      return null;
+    }
+
     const normalized = normalizeUrl(url);
 
     // Skip if already visited
@@ -161,6 +178,18 @@ export class Crawler {
 
       // Extract metadata
       const metadata = extractMetadata(html, url, this.config.url, depth);
+
+      // Strongly prefer English content for LLM consumption
+      // Only accept non-English if: 1) no lang detected, or 2) very few results found
+      if (metadata.lang && metadata.lang !== "en") {
+        // Allow non-English only if we're desperate (< 3 pages found)
+        if (this.results.length >= 3) {
+          return null;
+        }
+        // Even then, only add if no better English alternative exists
+        console.warn(`Including non-English page (${metadata.lang}): ${url}`);
+      }
+
       this.results.push(metadata);
 
       // Add internal links to queue if within depth limit

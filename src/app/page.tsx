@@ -20,7 +20,7 @@ export default function Home() {
     setResult(null);
 
     try {
-      const response = await fetch("/api/generate", {
+      const response = await fetch("/api/v1/llms-txt", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

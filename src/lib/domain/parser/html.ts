@@ -1,11 +1,7 @@
 import * as cheerio from "cheerio";
 import { PageMetadata } from "@/types";
-import {
-  toAbsoluteUrl,
-  isInternalUrl,
-  normalizeUrl,
-  getUrlDepth,
-} from "../../utils/url";
+import { toAbsoluteUrl, normalizeUrl } from "../../shared/url-utils";
+import { isInternalUrl, getUrlDepth } from "../logic/url-classification";
 
 /**
  * Extract metadata from HTML page
@@ -37,6 +33,21 @@ export function extractMetadata(
 
   const h1 = $("h1").first().text().trim();
 
+  // Extract language (for LLM content optimization)
+  const lang =
+    $("html").attr("lang")?.toLowerCase().split("-")[0] || // <html lang="en-US"> → "en"
+    $('meta[http-equiv="content-language"]')
+      .attr("content")
+      ?.toLowerCase()
+      .split("-")[0] || // <meta http-equiv="content-language" content="en"> → "en"
+    $('meta[property="og:locale"]')
+      .attr("content")
+      ?.toLowerCase()
+      .split("_")[0]; // og:locale="en_US" → "en"
+
+  // Extract siteName (cleaner than title for brand names)
+  const siteName = $('meta[property="og:site_name"]').attr("content")?.trim();
+
   // Extract internal links
   const internalLinks: string[] = [];
   $("a[href]").each((_, element) => {
@@ -66,6 +77,8 @@ export function extractMetadata(
     ogDescription,
     ogTitle,
     h1,
+    siteName,
+    lang,
     depth,
     internalLinks: [...new Set(internalLinks)], // Deduplicate
   };

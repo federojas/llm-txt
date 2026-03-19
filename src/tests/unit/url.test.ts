@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeUrl,
-  isInternalUrl,
   toAbsoluteUrl,
   matchesPattern,
   extractDomain,
+} from "@/lib/shared/url-utils";
+import {
+  isInternalUrl,
   getUrlDepth,
   classifyUrl,
-} from "@/lib/utils/url";
+} from "@/lib/domain/logic/url-classification";
 
 describe("URL Utilities", () => {
   describe("normalizeUrl", () => {

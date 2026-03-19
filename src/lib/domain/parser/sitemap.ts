@@ -1,6 +1,5 @@
 import * as cheerio from "cheerio";
-import { normalizeUrl } from "../../utils/url";
-import { httpClient } from "../../utils/http-client";
+import { normalizeUrl } from "../../shared/url-utils";
 
 export interface SitemapUrl {
   url: string;
@@ -9,114 +8,95 @@ export interface SitemapUrl {
 }
 
 /**
- * Parse sitemap.xml and extract URLs
+ * Parse sitemap XML content and extract URLs
+ * Pure function - no HTTP concerns, just XML parsing
+ *
+ * @param xmlContent - Raw XML string from sitemap
+ * @param maxUrls - Maximum number of URLs to extract
+ * @returns Array of sitemap URLs with metadata
  */
-export async function parseSitemap(
-  sitemapUrl: string,
+export function parseSitemapXml(
+  xmlContent: string,
   maxUrls: number = 100
-): Promise<SitemapUrl[]> {
+): SitemapUrl[] {
   try {
-    const response = await httpClient.get(sitemapUrl, {
-      timeout: 10000,
-      responseType: "text",
-    });
-
-    if (response.status < 200 || response.status >= 300) {
-      throw new Error(`Failed to fetch sitemap: ${response.status}`);
-    }
-
-    const text = response.data as string;
-    const $ = cheerio.load(text, { xmlMode: true });
-
+    const $ = cheerio.load(xmlContent, { xmlMode: true });
     const urls: SitemapUrl[] = [];
 
-    // Check if it's a sitemap index
-    const sitemapElements = $("sitemap loc");
-    if (sitemapElements.length > 0) {
-      // This is a sitemap index, fetch child sitemaps
-      const sitemapUrls = sitemapElements
-        .map((_, el) => $(el).text())
-        .get()
-        .slice(0, 5); // Limit to 5 sitemaps
+    // Parse regular sitemap (not sitemap index)
+    $("url").each((_, element) => {
+      if (urls.length >= maxUrls) return false;
 
-      for (const childSitemapUrl of sitemapUrls) {
-        const childUrls = await parseSitemap(childSitemapUrl, maxUrls);
-        urls.push(...childUrls);
-        if (urls.length >= maxUrls) break;
+      const loc = $(element).find("loc").text();
+      const priority = parseFloat($(element).find("priority").text()) || 0.5;
+      const lastmod = $(element).find("lastmod").text() || undefined;
+
+      if (loc) {
+        urls.push({
+          url: normalizeUrl(loc),
+          priority,
+          lastmod,
+        });
       }
-    } else {
-      // Regular sitemap
-      $("url").each((_, element) => {
-        if (urls.length >= maxUrls) return false;
-
-        const loc = $(element).find("loc").text();
-        const priority = parseFloat($(element).find("priority").text()) || 0.5;
-        const lastmod = $(element).find("lastmod").text() || undefined;
-
-        if (loc) {
-          urls.push({
-            url: normalizeUrl(loc),
-            priority,
-            lastmod,
-          });
-        }
-      });
-    }
+    });
 
     // Sort by priority (descending)
     urls.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
     return urls.slice(0, maxUrls);
   } catch (error) {
-    console.error("Failed to parse sitemap:", error);
+    console.error("Failed to parse sitemap XML:", error);
     return [];
   }
 }
 
 /**
- * Try to find sitemap.xml URL
+ * Extract child sitemap URLs from sitemap index
+ * Pure function - just XML parsing
+ *
+ * @param xmlContent - Raw XML string from sitemap index
+ * @returns Array of child sitemap URLs
  */
-export async function findSitemap(baseUrl: string): Promise<string | null> {
-  const commonSitemapPaths = [
-    "/sitemap.xml",
-    "/sitemap_index.xml",
-    "/sitemap-index.xml",
-    "/sitemap1.xml",
-  ];
-
-  for (const path of commonSitemapPaths) {
-    try {
-      const sitemapUrl = new URL(path, baseUrl).toString();
-      const response = await httpClient.head(sitemapUrl, {
-        timeout: 5000,
-      });
-
-      if (response.status >= 200 && response.status < 300) {
-        return sitemapUrl;
-      }
-    } catch {
-      // Continue to next path
-    }
-  }
-
-  // Try robots.txt
+export function parseSitemapIndex(xmlContent: string): string[] {
   try {
-    const robotsUrl = new URL("/robots.txt", baseUrl).toString();
-    const response = await httpClient.get(robotsUrl, {
-      timeout: 5000,
-      responseType: "text",
-    });
+    const $ = cheerio.load(xmlContent, { xmlMode: true });
+    const sitemapElements = $("sitemap loc");
 
-    if (response.status >= 200 && response.status < 300) {
-      const text = response.data as string;
-      const sitemapMatch = text.match(/Sitemap:\s*(.+)/i);
-      if (sitemapMatch) {
-        return sitemapMatch[1].trim();
-      }
-    }
-  } catch {
-    // No robots.txt
+    return sitemapElements
+      .map((_, el) => $(el).text())
+      .get()
+      .slice(0, 5); // Limit to 5 child sitemaps
+  } catch (error) {
+    console.error("Failed to parse sitemap index:", error);
+    return [];
   }
+}
 
-  return null;
+/**
+ * Check if XML content is a sitemap index (vs regular sitemap)
+ *
+ * @param xmlContent - Raw XML string
+ * @returns true if it's a sitemap index
+ */
+export function isSitemapIndex(xmlContent: string): boolean {
+  try {
+    const $ = cheerio.load(xmlContent, { xmlMode: true });
+    return $("sitemap loc").length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Extract sitemap URL from robots.txt content
+ * Pure function - just text parsing
+ *
+ * @param robotsTxtContent - Raw robots.txt content
+ * @returns Sitemap URL if found, null otherwise
+ */
+export function extractSitemapFromRobotsTxt(
+  robotsTxtContent: string
+): string | null {
+  const sitemapMatch = robotsTxtContent.match(/Sitemap:\s*(.+)/i);
+  return sitemapMatch ? sitemapMatch[1].trim() : null;
 }

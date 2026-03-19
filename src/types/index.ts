@@ -25,6 +25,8 @@ export interface PageMetadata {
   ogDescription?: string;
   ogTitle?: string;
   h1?: string;
+  siteName?: string; // For proper homepage title extraction
+  lang?: string; // For filtering non-English pages
   depth: number;
   internalLinks: string[];
 }

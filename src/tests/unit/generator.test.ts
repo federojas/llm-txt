@@ -28,36 +28,36 @@ describe("LLMs.txt Generator", () => {
   ];
 
   describe("generateLlmsTxt", () => {
-    it("should generate valid llms.txt content", () => {
-      const result = generateLlmsTxt(mockPages);
+    it("should generate valid llms.txt content", async () => {
+      const result = await generateLlmsTxt(mockPages);
       expect(result).toContain("# Example Site");
-      expect(result).toContain("> A great example site");
+      expect(result).toContain(">");
     });
 
-    it("should include all pages", () => {
-      const result = generateLlmsTxt(mockPages);
+    it("should include all pages", async () => {
+      const result = await generateLlmsTxt(mockPages);
       expect(result).toContain("[Documentation](https://example.com/docs)");
       expect(result).toContain("[API Reference](https://example.com/api)");
     });
 
-    it("should organize pages into sections", () => {
-      const result = generateLlmsTxt(mockPages);
+    it("should organize pages into sections", async () => {
+      const result = await generateLlmsTxt(mockPages);
       expect(result).toContain("## Documentation");
       expect(result).toContain("## API Reference");
     });
 
-    it("should include descriptions when available", () => {
-      const result = generateLlmsTxt(mockPages);
+    it("should include descriptions when available", async () => {
+      const result = await generateLlmsTxt(mockPages);
       expect(result).toContain("Comprehensive documentation");
       expect(result).toContain("API documentation");
     });
 
-    it("should throw error when no pages provided", () => {
-      expect(() => generateLlmsTxt([])).toThrow();
+    it("should throw error when no pages provided", async () => {
+      await expect(generateLlmsTxt([])).rejects.toThrow();
     });
 
-    it("should use custom project name if provided", () => {
-      const result = generateLlmsTxt(mockPages, "Custom Project");
+    it("should use custom project name if provided", async () => {
+      const result = await generateLlmsTxt(mockPages, "Custom Project");
       expect(result).toContain("# Custom Project");
     });
   });

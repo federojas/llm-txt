@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { llmsGeneratorService } from "@/lib/services";
+import { generateLlmsTxtUseCase } from "@/lib/use-cases";
 import { validateRequest, withErrorHandler, successResponse } from "@/lib/api";
 import { generateRequestSchema } from "@/lib/api/dtos";
 
@@ -7,20 +7,24 @@ export const runtime = "nodejs";
 export const maxDuration = 60; // 60 seconds max
 
 /**
- * POST /api/generate
+ * POST /api/v1/llms-txt
  * Generate llms.txt for a given URL
  *
- * This endpoint follows a layered architecture:
- * - Route handler: HTTP concerns only (validation, serialization)
- * - Service layer: Business logic orchestration
- * - Core layer: Domain logic (crawler, generator)
+ * RESTful API Design:
+ * - Resource-based endpoint (llms-txt is the resource)
+ * - Path-based versioning (v1)
+ * - Follows Clean Architecture layers:
+ *   → API Layer: HTTP concerns (validation, serialization)
+ *   → Application Layer: Use case orchestration
+ *   → Domain Layer: Business logic (crawler, generator)
+ *   → Infrastructure Layer: External services (AI, HTTP)
  */
 export const POST = withErrorHandler(async (request: NextRequest) => {
   // Validate request
   const requestData = await validateRequest(request, generateRequestSchema);
 
-  // Execute business logic
-  const result = await llmsGeneratorService.generate(requestData);
+  // Execute use case
+  const result = await generateLlmsTxtUseCase.execute(requestData);
 
   // Return success response
   return NextResponse.json(successResponse(result));

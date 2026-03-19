@@ -1,47 +1,84 @@
 import { PageMetadata, LlmsTxtOutput, LlmsTxtSection } from "@/types";
-import { classifyUrl } from "../../utils/url";
+import { classifyUrl } from "../logic/url-classification";
+import { IDescriptionService } from "../interfaces";
+import { DescriptionService } from "../services/description.service";
+import { DescriptionGeneratorFactory } from "@/lib/infrastructure/adapters/description-generators";
 
 /**
  * Generate llms.txt content from crawled pages
  */
-export function generateLlmsTxt(
+export async function generateLlmsTxt(
   pages: PageMetadata[],
-  projectName?: string
-): string {
-  const output = buildLlmsTxtStructure(pages, projectName);
+  projectName?: string,
+  descriptionService?: IDescriptionService
+): Promise<string> {
+  const output = await buildLlmsTxtStructure(
+    pages,
+    projectName,
+    descriptionService
+  );
   return formatLlmsTxt(output);
 }
 
 /**
  * Build structured llms.txt data
  */
-function buildLlmsTxtStructure(
+async function buildLlmsTxtStructure(
   pages: PageMetadata[],
-  projectName?: string
-): LlmsTxtOutput {
+  projectName?: string,
+  descriptionService?: IDescriptionService
+): Promise<LlmsTxtOutput> {
   if (pages.length === 0) {
     throw new Error("No pages to generate llms.txt from");
   }
 
-  // Find homepage
-  const homepage = pages.find((p) => p.depth === 0) || pages[0];
+  // Find homepage (must be the root URL, not just depth 0)
+  const homepage =
+    pages.find((p) => {
+      try {
+        const url = new URL(p.url);
+        return url.pathname === "/" || url.pathname === "";
+      } catch {
+        return false;
+      }
+    }) ||
+    pages.find((p) => p.depth === 0) ||
+    pages[0];
 
-  // Determine project name
+  // Determine project name (prefer siteName for clean titles like "YouTube" not "YouTube Masthead Preview")
   const name =
     projectName ||
+    homepage.siteName ||
     homepage.ogTitle ||
     homepage.h1 ||
-    homepage.title ||
-    new URL(homepage.url).hostname;
+    homepage.title.split("|")[0].split("-")[0].trim() || // Extract before " | " or " - "
+    new URL(homepage.url).hostname.replace(/^www\./, "");
 
-  // Use homepage description as summary
-  const summary = homepage.ogDescription || homepage.description;
+  // Initialize description service if not provided (dependency injection with default)
+  const service =
+    descriptionService ||
+    (() => {
+      const primaryGenerator =
+        DescriptionGeneratorFactory.createPrimaryGenerator();
+      const fallbackGenerator =
+        DescriptionGeneratorFactory.createFallbackGenerator();
+      return new DescriptionService(
+        primaryGenerator || fallbackGenerator,
+        fallbackGenerator
+      );
+    })();
+
+  // Generate business summary for homepage
+  const summary = await service.generateBusinessSummary(homepage);
+
+  // Generate descriptions for all pages (rate limiting handled by generator)
+  const aiDescriptions = await service.generateDescriptions(pages);
 
   // Classify and group pages
   const classified = classifyPages(pages);
 
-  // Build sections
-  const sections = buildSections(classified);
+  // Build sections with AI descriptions
+  const sections = buildSections(classified, aiDescriptions);
 
   // Separate optional/secondary content
   const { mainSections, optionalSection } = separateOptionalContent(sections);
@@ -75,7 +112,8 @@ function classifyPages(pages: PageMetadata[]): Map<string, PageMetadata[]> {
  * Build sections from classified pages
  */
 function buildSections(
-  classified: Map<string, PageMetadata[]>
+  classified: Map<string, PageMetadata[]>,
+  aiDescriptions: Map<string, string>
 ): LlmsTxtSection[] {
   const sections: LlmsTxtSection[] = [];
 
@@ -86,8 +124,10 @@ function buildSections(
     { key: "guides", title: "Guides" },
     { key: "tutorials", title: "Tutorials" },
     { key: "api", title: "API Reference" },
-    { key: "blog", title: "Blog" },
     { key: "about", title: "About" },
+    { key: "creators", title: "Creators & Advertisers" },
+    { key: "legal", title: "Legal & Policies" },
+    { key: "blog", title: "Blog" },
     { key: "other", title: "Additional Resources" },
   ];
 
@@ -108,7 +148,7 @@ function buildSections(
       links: sortedPages.map((page) => ({
         title: page.title,
         url: page.url,
-        description: page.description,
+        description: aiDescriptions.get(page.url) || page.description,
       })),
     });
   }
@@ -123,7 +163,7 @@ function separateOptionalContent(sections: LlmsTxtSection[]): {
   mainSections: LlmsTxtSection[];
   optionalSection?: LlmsTxtSection;
 } {
-  const lowPrioritySections = ["Blog", "About", "Additional Resources"];
+  const lowPrioritySections = ["Blog", "Additional Resources"];
 
   const mainSections = sections.filter(
     (s) => !lowPrioritySections.includes(s.title)

@@ -1,20 +1,20 @@
 /**
- * LLMs Generator Service
- * Business logic layer for generating llms.txt files
+ * Generate llms.txt Use Case
+ * Orchestrates the generation of llms.txt files from crawled websites
  */
 
-import { Crawler } from "@/lib/domain/crawler";
+import { CrawlerService } from "@/lib/domain/services/crawler.service";
 import { generateLlmsTxt } from "@/lib/domain/generator";
 import { getPresetMaxPages, getPresetMaxDepth } from "@/lib/config";
 import { NotFoundError, InternalServerError } from "@/lib/api/errors";
 import { CrawlConfig, PageMetadata } from "@/types";
 import { GenerateRequest, GenerateResponseData } from "@/lib/api/dtos";
 
-export class LlmsGeneratorService {
+export class GenerateLlmsTxt {
   /**
-   * Generates llms.txt content for a given URL with options
+   * Execute the use case: generate llms.txt content for a given URL with options
    */
-  async generate(request: GenerateRequest): Promise<GenerateResponseData> {
+  async execute(request: GenerateRequest): Promise<GenerateResponseData> {
     try {
       // Build configuration from request
       const config = this.buildConfig(request);
@@ -31,7 +31,7 @@ export class LlmsGeneratorService {
       }
 
       // Generate llms.txt content
-      const content = this.generateContent(pages);
+      const content = await this.generateContent(pages);
 
       // Return structured response
       return {
@@ -74,17 +74,17 @@ export class LlmsGeneratorService {
    * Executes website crawl
    */
   private async crawlWebsite(config: CrawlConfig): Promise<PageMetadata[]> {
-    const crawler = new Crawler(config);
+    const crawler = new CrawlerService(config);
     return crawler.crawl();
   }
 
   /**
    * Generates llms.txt content from crawled pages
    */
-  private generateContent(pages: PageMetadata[]): string {
-    return generateLlmsTxt(pages);
+  private async generateContent(pages: PageMetadata[]): Promise<string> {
+    return await generateLlmsTxt(pages);
   }
 }
 
 // Export singleton instance
-export const llmsGeneratorService = new LlmsGeneratorService();
+export const generateLlmsTxtUseCase = new GenerateLlmsTxt();
