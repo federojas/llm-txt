@@ -8,7 +8,7 @@ import {
   validateConcurrency,
   isValidUrl,
   isValidPreset,
-} from "@/lib/domain/validation";
+} from "@/lib/domain/logic/validation";
 
 describe("Domain Validation Rules", () => {
   describe("CRAWL_LIMITS constants", () => {

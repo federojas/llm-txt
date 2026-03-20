@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { generateLlmsTxt, validateLlmsTxt } from "@/lib/domain/generator";
+import {
+  generateLlmsTxt,
+  validateLlmsTxt,
+} from "@/lib/domain/services/generator.service";
 import { PageMetadata } from "@/lib/domain/models";
 
 describe("LLMs.txt Generator", () => {

@@ -4,3 +4,4 @@
  */
 
 export * from "./url-classification";
+export * from "./validation";

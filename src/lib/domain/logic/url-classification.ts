@@ -12,7 +12,7 @@
  */
 
 import type { PageMetadata } from "@/lib/domain/models";
-import type { SitemapUrl } from "../parser/sitemap";
+import type { SitemapUrl } from "../../infrastructure/parsers/sitemap-parser";
 
 /**
  * Classify URL by content type using hybrid strategy

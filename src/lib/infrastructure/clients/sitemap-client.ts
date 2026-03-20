@@ -15,7 +15,7 @@ import {
   parseSitemapIndex,
   isSitemapIndex,
   extractSitemapFromRobotsTxt,
-} from "../../domain/parser/sitemap";
+} from "../parsers/sitemap-parser";
 
 /**
  * Fetch and parse sitemap.xml

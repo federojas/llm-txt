@@ -1,7 +1,10 @@
 import * as cheerio from "cheerio";
 import { PageMetadata } from "@/lib/domain/models";
 import { toAbsoluteUrl, normalizeUrl } from "../../shared/url-utils";
-import { isInternalUrl, getUrlDepth } from "../logic/url-classification";
+import {
+  isInternalUrl,
+  getUrlDepth,
+} from "../../domain/logic/url-classification";
 
 /**
  * Extract metadata from HTML page

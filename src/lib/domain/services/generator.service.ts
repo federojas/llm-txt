@@ -1,4 +1,8 @@
-import { PageMetadata, LlmsTxtOutput, LlmsTxtSection } from "@/types";
+import {
+  PageMetadata,
+  LlmsTxtOutput,
+  LlmsTxtSection,
+} from "@/lib/domain/models";
 import { classifyUrl } from "../logic/url-classification";
 import { IDescriptionService } from "../interfaces";
 import { DescriptionService } from "../services/description.service";
@@ -144,7 +148,7 @@ function buildSections(
         if (a.depth !== b.depth) return a.depth - b.depth;
         return a.title.localeCompare(b.title);
       })
-      .slice(0, 20); // Limit per section
+      .slice(0, 10); // Reduced from 20 to 10 for more focused output
 
     sections.push({
       title,

@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import { CRAWL_LIMITS, CRAWL_DEFAULTS } from "@/lib/domain/validation";
+import { CRAWL_LIMITS, CRAWL_DEFAULTS } from "@/lib/domain/logic/validation";
 import { isSSRFSafe } from "@/lib/api/security";
 
 /**
