@@ -2,11 +2,15 @@
  * API Validation Schemas
  * Zod schemas for HTTP request validation
  * Combines domain business rules with API security concerns
+ *
+ * Schemas use `satisfies z.ZodType<DTO>` to ensure they conform to DTO interfaces.
+ * This decouples DTOs from validation framework while maintaining type safety.
  */
 
 import { z } from "zod";
 import { CRAWL_LIMITS, CRAWL_DEFAULTS } from "@/lib/domain/logic/validation";
 import { isSSRFSafe } from "@/lib/api/security";
+import type { GenerateRequest } from "@/lib/api/dtos";
 
 /**
  * URL validation schema with SSRF protection
@@ -70,6 +74,8 @@ export const crawlConfigSchema = z.object({
 /**
  * Crawl options schema (all fields optional except URL)
  * Used for API requests where presets can override values
+ *
+ * Uses `satisfies` to ensure schema matches GenerateRequest DTO type
  */
 export const crawlOptionsSchema = z.object({
   url: urlSchema,
@@ -101,7 +107,7 @@ export const crawlOptionsSchema = z.object({
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),
   languageStrategy: languageStrategySchema.optional(),
-});
+}) satisfies z.ZodType<GenerateRequest>;
 
 /**
  * Inferred types from schemas

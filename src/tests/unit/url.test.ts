@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { normalizeUrl } from "@/lib/domain/logic/url-normalization";
 import {
-  normalizeUrl,
   toAbsoluteUrl,
   matchesPattern,
   extractDomain,
-} from "@/lib/shared/url-utils";
+} from "@/lib/infrastructure/utilities/url-helpers";
 import {
   isInternalUrl,
   getUrlDepth,

@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  generateLlmsTxt,
+  GeneratorService,
   validateLlmsTxt,
 } from "@/lib/domain/services/generator.service";
 import { PageMetadata } from "@/lib/domain/models";
+import { IDescriptionService } from "@/lib/domain/interfaces";
 
 describe("LLMs.txt Generator", () => {
   const mockPages: PageMetadata[] = [
@@ -30,37 +31,55 @@ describe("LLMs.txt Generator", () => {
     },
   ];
 
-  describe("generateLlmsTxt", () => {
+  // Mock description service
+  const mockDescriptionService: IDescriptionService = {
+    generateBusinessSummary: async () => "A comprehensive example site",
+    generateDescriptions: async (pages: PageMetadata[]) => {
+      const descriptions = new Map<string, string>();
+      for (const page of pages) {
+        descriptions.set(page.url, page.description || "");
+      }
+      return descriptions;
+    },
+  };
+
+  describe("GeneratorService", () => {
     it("should generate valid llms.txt content", async () => {
-      const result = await generateLlmsTxt(mockPages);
+      const service = new GeneratorService(mockDescriptionService);
+      const result = await service.generate(mockPages);
       expect(result).toContain("# Example Site");
       expect(result).toContain(">");
     });
 
     it("should include all pages", async () => {
-      const result = await generateLlmsTxt(mockPages);
+      const service = new GeneratorService(mockDescriptionService);
+      const result = await service.generate(mockPages);
       expect(result).toContain("[Documentation](https://example.com/docs)");
       expect(result).toContain("[API Reference](https://example.com/api)");
     });
 
     it("should organize pages into sections", async () => {
-      const result = await generateLlmsTxt(mockPages);
+      const service = new GeneratorService(mockDescriptionService);
+      const result = await service.generate(mockPages);
       expect(result).toContain("## Documentation");
       expect(result).toContain("## API Reference");
     });
 
     it("should include descriptions when available", async () => {
-      const result = await generateLlmsTxt(mockPages);
+      const service = new GeneratorService(mockDescriptionService);
+      const result = await service.generate(mockPages);
       expect(result).toContain("Comprehensive documentation");
       expect(result).toContain("API documentation");
     });
 
     it("should throw error when no pages provided", async () => {
-      await expect(generateLlmsTxt([])).rejects.toThrow();
+      const service = new GeneratorService(mockDescriptionService);
+      await expect(service.generate([])).rejects.toThrow();
     });
 
     it("should use custom project name if provided", async () => {
-      const result = await generateLlmsTxt(mockPages, "Custom Project");
+      const service = new GeneratorService(mockDescriptionService);
+      const result = await service.generate(mockPages, "Custom Project");
       expect(result).toContain("# Custom Project");
     });
   });

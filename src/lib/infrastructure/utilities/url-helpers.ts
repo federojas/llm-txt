@@ -1,48 +1,10 @@
 /**
- * URL Utilities (Shared Layer)
- * Generic, reusable URL manipulation functions
+ * URL Helpers (Infrastructure Utilities)
+ * Pure technical utilities for URL manipulation
  *
  * These are framework-agnostic utilities with no business logic.
- * Could be extracted to a separate package or used across projects.
+ * They are simple wrappers around the URL API for convenience.
  */
-
-/**
- * Normalize URL for deduplication and comparison
- * Removes tracking params, sorts query strings, removes trailing slashes
- *
- * @param url - URL to normalize
- * @returns Normalized URL string
- */
-export function normalizeUrl(url: string): string {
-  try {
-    const parsedUrl = new URL(url);
-
-    // Remove trailing slash
-    parsedUrl.pathname = parsedUrl.pathname.replace(/\/+$/, "") || "/";
-
-    // Remove hash
-    parsedUrl.hash = "";
-
-    // Sort query parameters
-    parsedUrl.searchParams.sort();
-
-    // Remove common tracking parameters
-    const trackingParams = [
-      "utm_source",
-      "utm_medium",
-      "utm_campaign",
-      "utm_term",
-      "utm_content",
-      "ref",
-      "source",
-    ];
-    trackingParams.forEach((param) => parsedUrl.searchParams.delete(param));
-
-    return parsedUrl.toString();
-  } catch {
-    return url;
-  }
-}
 
 /**
  * Convert relative URL to absolute URL

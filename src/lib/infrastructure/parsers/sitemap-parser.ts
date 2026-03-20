@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { normalizeUrl } from "../../shared/url-utils";
+import { normalizeUrl } from "../../domain/logic/url-normalization";
 
 export interface SitemapUrl {
   url: string;

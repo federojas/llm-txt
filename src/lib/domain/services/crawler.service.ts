@@ -1,10 +1,8 @@
 import { CrawlConfig, PageMetadata, CrawlProgress } from "@/lib/domain/models";
-import {
-  extractMetadata,
-  isIndexable,
-} from "../../infrastructure/parsers/html-parser";
+import { IHtmlParser } from "../interfaces/html-parser.interface";
+import { CheerioHtmlParser } from "../../infrastructure/adapters/cheerio-html-parser";
 import { getUrlDepth, isLanguageVariant } from "../logic/url-classification";
-import { normalizeUrl } from "../../shared/url-utils";
+import { normalizeUrl } from "../logic/url-normalization";
 import { httpClient } from "../../infrastructure/clients/http-client";
 import {
   discoverSitemap,
@@ -29,6 +27,7 @@ export class CrawlerService implements ICrawlerService {
   private results: PageMetadata[] = [];
   private progressCallback?: (progress: CrawlProgress) => void;
   private abortController = new AbortController();
+  private htmlParser: IHtmlParser;
   private languageDetector: ILanguageDetector;
   private englishPagesFound = 0; // Track English pages for graceful degradation
   private relaxedLanguageMode = false; // Enable fallback to other languages
@@ -38,10 +37,12 @@ export class CrawlerService implements ICrawlerService {
 
   constructor(
     config: CrawlConfig,
+    htmlParser?: IHtmlParser,
     progressCallback?: (progress: CrawlProgress) => void,
     languageDetector?: ILanguageDetector
   ) {
     this.config = config;
+    this.htmlParser = htmlParser || new CheerioHtmlParser();
     this.progressCallback = progressCallback;
     // Default to "prefer-english" strategy if not specified
     this.config.languageStrategy = config.languageStrategy || "prefer-english";
@@ -272,10 +273,15 @@ export class CrawlerService implements ICrawlerService {
       const html = response.data as string;
 
       // Check if indexable
-      if (!isIndexable(html)) return null;
+      if (!this.htmlParser.isIndexable(html)) return null;
 
       // Extract metadata
-      const metadata = extractMetadata(html, url, this.config.url, depth);
+      const metadata = this.htmlParser.extractMetadata(
+        html,
+        url,
+        this.config.url,
+        depth
+      );
 
       // Extract Content-Language header from HTTP response
       const contentLanguageHeader = response.headers["content-language"];

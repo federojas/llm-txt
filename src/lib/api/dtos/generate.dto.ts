@@ -1,14 +1,25 @@
 /**
  * DTOs for the Generate LLMs.txt Endpoint
  * Defines request and response types for type-safe API communication
+ *
+ * These are pure TypeScript interfaces - no coupling to validation frameworks.
+ * Validation schemas in the validation layer must conform to these types.
  */
 
-import { z } from "zod";
-import { crawlOptionsSchema } from "@/lib/api/validation";
+import { CrawlPreset, LanguageStrategy } from "@/lib/domain/models";
 
 // Request DTO
-export const generateRequestSchema = crawlOptionsSchema;
-export type GenerateRequest = z.infer<typeof generateRequestSchema>;
+export interface GenerateRequest {
+  url: string;
+  preset?: CrawlPreset;
+  maxPages?: number;
+  maxDepth?: number;
+  timeout?: number;
+  concurrency?: number;
+  includePatterns?: string[];
+  excludePatterns?: string[];
+  languageStrategy?: LanguageStrategy;
+}
 
 // Response DTOs
 export interface GenerateResponseData {

@@ -5,7 +5,9 @@
 
 import { CrawlerService } from "@/lib/domain/services/crawler.service";
 import { LanguageDetectorService } from "@/lib/domain/services/language-detector.service";
-import { generateLlmsTxt } from "@/lib/domain/services/generator.service";
+import { GeneratorService } from "@/lib/domain/services/generator.service";
+import { DescriptionService } from "@/lib/domain/services/description.service";
+import { DescriptionGeneratorFactory } from "@/lib/infrastructure/adapters/description-generators";
 import { getPresetMaxPages, getPresetMaxDepth } from "@/lib/config";
 import { NotFoundError, InternalServerError } from "@/lib/api/errors";
 import { CrawlConfig, PageMetadata } from "@/lib/domain/models";
@@ -80,7 +82,12 @@ export class GenerateLlmsTxt {
     // Relies on Accept-Language header forcing English at HTTP layer
     const languageDetector = new LanguageDetectorService();
 
-    const crawler = new CrawlerService(config, undefined, languageDetector);
+    const crawler = new CrawlerService(
+      config,
+      undefined,
+      undefined,
+      languageDetector
+    );
     return crawler.crawl();
   }
 
@@ -88,7 +95,21 @@ export class GenerateLlmsTxt {
    * Generates llms.txt content from crawled pages
    */
   private async generateContent(pages: PageMetadata[]): Promise<string> {
-    return await generateLlmsTxt(pages);
+    // Create description service dependencies
+    const primaryGenerator =
+      DescriptionGeneratorFactory.createPrimaryGenerator();
+    const fallbackGenerator =
+      DescriptionGeneratorFactory.createFallbackGenerator();
+    const descriptionService = new DescriptionService(
+      primaryGenerator || fallbackGenerator,
+      fallbackGenerator
+    );
+
+    // Create generator service with injected dependencies
+    const generatorService = new GeneratorService(descriptionService);
+
+    // Generate llms.txt content
+    return await generatorService.generate(pages);
   }
 }
 

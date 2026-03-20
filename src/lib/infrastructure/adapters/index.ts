@@ -4,3 +4,4 @@
  */
 
 export * from "./description-generators";
+export { CheerioHtmlParser } from "./cheerio-html-parser";
