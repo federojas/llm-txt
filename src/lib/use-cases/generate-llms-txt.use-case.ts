@@ -4,6 +4,7 @@
  */
 
 import { CrawlerService } from "@/lib/domain/services/crawler.service";
+import { LanguageDetectorService } from "@/lib/domain/services/language-detector.service";
 import { generateLlmsTxt } from "@/lib/domain/services/generator.service";
 import { getPresetMaxPages, getPresetMaxDepth } from "@/lib/config";
 import { NotFoundError, InternalServerError } from "@/lib/api/errors";
@@ -67,14 +68,19 @@ export class GenerateLlmsTxt {
       concurrency: request.concurrency ?? 5,
       includePatterns: request.includePatterns,
       excludePatterns: request.excludePatterns,
+      languageStrategy: request.languageStrategy,
     };
   }
 
   /**
-   * Executes website crawl
+   * Executes website crawl with language detection
    */
   private async crawlWebsite(config: CrawlConfig): Promise<PageMetadata[]> {
-    const crawler = new CrawlerService(config);
+    // Use lightweight language detection (URL patterns + HTML metadata)
+    // Relies on Accept-Language header forcing English at HTTP layer
+    const languageDetector = new LanguageDetectorService();
+
+    const crawler = new CrawlerService(config, undefined, languageDetector);
     return crawler.crawl();
   }
 

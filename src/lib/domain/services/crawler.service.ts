@@ -1,5 +1,8 @@
 import { CrawlConfig, PageMetadata, CrawlProgress } from "@/lib/domain/models";
-import { extractMetadata, isIndexable } from "../parser/html";
+import {
+  extractMetadata,
+  isIndexable,
+} from "../../infrastructure/parsers/html-parser";
 import { getUrlDepth, isLanguageVariant } from "../logic/url-classification";
 import { normalizeUrl } from "../../shared/url-utils";
 import { httpClient } from "../../infrastructure/clients/http-client";
@@ -8,6 +11,8 @@ import {
   fetchAndParseSitemap,
 } from "../../infrastructure/clients/sitemap-client";
 import { ICrawlerService } from "../interfaces/crawler-service.interface";
+import { ILanguageDetector } from "../interfaces/language-detector.interface";
+import { LanguageDetectorService } from "./language-detector.service";
 
 /**
  * Crawler Service (Domain Layer)
@@ -20,13 +25,20 @@ export class CrawlerService implements ICrawlerService {
   private results: PageMetadata[] = [];
   private progressCallback?: (progress: CrawlProgress) => void;
   private abortController = new AbortController();
+  private languageDetector: ILanguageDetector;
+  private englishPagesFound = 0; // Track English pages for graceful degradation
+  private relaxedLanguageMode = false; // Enable fallback to other languages
 
   constructor(
     config: CrawlConfig,
-    progressCallback?: (progress: CrawlProgress) => void
+    progressCallback?: (progress: CrawlProgress) => void,
+    languageDetector?: ILanguageDetector
   ) {
     this.config = config;
     this.progressCallback = progressCallback;
+    // Default to "prefer-english" strategy if not specified
+    this.config.languageStrategy = config.languageStrategy || "prefer-english";
+    this.languageDetector = languageDetector || new LanguageDetectorService();
   }
 
   /**
@@ -52,6 +64,8 @@ export class CrawlerService implements ICrawlerService {
       if (!usedSitemap || this.results.length < this.config.maxPages) {
         await this.crawlFromHomepage();
       }
+
+      // No validation needed - both strategies handle empty results gracefully
 
       this.updateProgress({
         status: "complete",
@@ -124,6 +138,9 @@ export class CrawlerService implements ICrawlerService {
       this.queue.length > 0 &&
       this.results.length < this.config.maxPages
     ) {
+      // Sort queue by depth (shallow pages first) for better quality
+      this.queue.sort((a, b) => a.depth - b.depth);
+
       // Process in batches for concurrency
       const batch = this.queue
         .splice(0, this.config.concurrency)
@@ -165,9 +182,16 @@ export class CrawlerService implements ICrawlerService {
         totalPages: this.config.maxPages,
       });
 
+      // Conditionally add Accept-Language header for prefer-english strategy
+      const headers: Record<string, string> = {};
+      if (this.config.languageStrategy === "prefer-english") {
+        headers["Accept-Language"] = "en-US,en;q=0.9";
+      }
+
       const response = await httpClient.get(url, {
         timeout: this.config.timeout,
         responseType: "text",
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
 
       if (response.status < 200 || response.status >= 300) return null;
@@ -183,17 +207,31 @@ export class CrawlerService implements ICrawlerService {
       // Extract metadata
       const metadata = extractMetadata(html, url, this.config.url, depth);
 
-      // Strongly prefer English content for LLM consumption
-      // Only filter non-English pages if we have substantial English content
-      if (metadata.lang && metadata.lang !== "en") {
-        const englishPages = this.results.filter(
-          (p) => !p.lang || p.lang === "en"
-        );
-        // Only start filtering if we have at least 10 English pages AND 20 total pages
-        if (englishPages.length >= 10 && this.results.length >= 20) {
+      // Extract Content-Language header from HTTP response
+      const contentLanguageHeader = response.headers["content-language"];
+
+      // Language filtering based on strategy
+      const detectedLang = await this.languageDetector.detectLanguage(
+        `${metadata.title} ${metadata.description || ""}`,
+        metadata.lang,
+        url,
+        contentLanguageHeader
+      );
+
+      // Track English pages for graceful degradation
+      if (detectedLang === "en") {
+        this.englishPagesFound++;
+      }
+
+      // ALWAYS accept homepage (critical for llms.txt generation)
+      const isHomepage = normalizeUrl(url) === normalizeUrl(this.config.url);
+
+      // Apply language filtering based on strategy (except for homepage)
+      if (!isHomepage) {
+        const shouldSkip = this.shouldSkipPage(detectedLang, url);
+        if (shouldSkip) {
           return null;
         }
-        console.warn(`Including non-English page (${metadata.lang}): ${url}`);
       }
 
       this.results.push(metadata);
@@ -228,6 +266,51 @@ export class CrawlerService implements ICrawlerService {
         ...progress,
       });
     }
+  }
+
+  /**
+   * Determine if page should be skipped based on language strategy
+   */
+  private shouldSkipPage(detectedLang: string, url: string): boolean {
+    const strategy = this.config.languageStrategy || "prefer-english";
+
+    // Strategy 1: "page-language" - Accept whatever language the page serves
+    // No filtering - accepts all languages (may result in mixed-language output for geo-aware sites)
+    if (strategy === "page-language") {
+      return false;
+    }
+
+    // Strategy 2: "prefer-english" - Prefer English, graceful degradation to primary language
+    if (strategy === "prefer-english") {
+      // If page is English, always accept
+      if (detectedLang === "en") {
+        return false;
+      }
+
+      const totalProcessed = this.visited.size;
+
+      // Graceful degradation: If no English found after 2+ pages, accept primary language
+      // Low threshold ensures we quickly adapt to non-English-only sites
+      if (totalProcessed >= 2 && this.englishPagesFound === 0) {
+        if (!this.relaxedLanguageMode) {
+          this.relaxedLanguageMode = true;
+          console.warn(
+            `[prefer-english] No English content found after ${totalProcessed} pages. ` +
+              `Accepting primary site language (${detectedLang}).`
+          );
+        }
+        return false; // Accept non-English page
+      }
+
+      // Otherwise, skip non-English pages (prefer English)
+      console.log(
+        `[prefer-english] Skipping non-English page (${detectedLang}): ${url}`
+      );
+      return true;
+    }
+
+    // Default: skip non-English
+    return true;
   }
 
   /**

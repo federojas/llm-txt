@@ -26,6 +26,14 @@ export const urlSchema = z
 export const crawlPresetSchema = z.enum(["quick", "thorough", "custom"]);
 
 /**
+ * Language strategy schema
+ */
+export const languageStrategySchema = z.enum([
+  "prefer-english",
+  "page-language",
+]);
+
+/**
  * Full crawl configuration schema (with defaults)
  */
 export const crawlConfigSchema = z.object({
@@ -56,6 +64,7 @@ export const crawlConfigSchema = z.object({
     .default(CRAWL_DEFAULTS.CONCURRENCY),
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),
+  languageStrategy: languageStrategySchema.optional(),
 });
 
 /**
@@ -91,6 +100,7 @@ export const crawlOptionsSchema = z.object({
     .optional(),
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),
+  languageStrategy: languageStrategySchema.optional(),
 });
 
 /**

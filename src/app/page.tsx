@@ -4,7 +4,7 @@ import { useState } from "react";
 import { UrlInput } from "@/components/url-input";
 import { LoadingState } from "@/components/loading-state";
 import { ResultPreview } from "@/components/result-preview";
-import { CrawlPreset } from "@/lib/domain/models";
+import { CrawlPreset, LanguageStrategy } from "@/lib/domain/models";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
@@ -14,7 +14,11 @@ export default function Home() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGenerate = async (url: string, preset: CrawlPreset) => {
+  const handleGenerate = async (
+    url: string,
+    preset: CrawlPreset,
+    languageStrategy: LanguageStrategy
+  ) => {
     setIsLoading(true);
     setError(null);
     setResult(null);
@@ -25,7 +29,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url, preset }),
+        body: JSON.stringify({ url, preset, languageStrategy }),
       });
 
       const data = await response.json();

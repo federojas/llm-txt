@@ -1,16 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { CrawlPreset } from "@/lib/domain/models";
+import { CrawlPreset, LanguageStrategy } from "@/lib/domain/models";
 
 interface UrlInputProps {
-  onGenerate: (url: string, preset: CrawlPreset) => void;
+  onGenerate: (
+    url: string,
+    preset: CrawlPreset,
+    languageStrategy: LanguageStrategy
+  ) => void;
   isLoading: boolean;
 }
 
 export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
   const [url, setUrl] = useState("");
   const [preset, setPreset] = useState<CrawlPreset>("quick");
+  const [languageStrategy, setLanguageStrategy] =
+    useState<LanguageStrategy>("prefer-english");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState("");
 
@@ -34,7 +40,7 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
 
     try {
       new URL(processedUrl);
-      onGenerate(processedUrl, preset);
+      onGenerate(processedUrl, preset, languageStrategy);
     } catch {
       setError("Please enter a valid URL");
     }
@@ -66,6 +72,34 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
             disabled={isLoading}
           />
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        </div>
+
+        <div>
+          <label
+            htmlFor="languageStrategy"
+            className="mb-2 block text-sm font-medium text-gray-700"
+          >
+            Language Preference
+          </label>
+          <select
+            id="languageStrategy"
+            value={languageStrategy}
+            onChange={(e) =>
+              setLanguageStrategy(e.target.value as LanguageStrategy)
+            }
+            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isLoading}
+          >
+            <option value="prefer-english">Prefer English (recommended)</option>
+            <option value="page-language">
+              Use server&apos;s natural language
+            </option>
+          </select>
+          <p className="mt-1 text-xs text-gray-500">
+            {languageStrategy === "prefer-english"
+              ? "Requests English content, falls back to site's primary language if unavailable"
+              : "⚠️ May result in mixed languages for geo-aware sites like YouTube"}
+          </p>
         </div>
 
         <div>
