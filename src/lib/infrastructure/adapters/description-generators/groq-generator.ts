@@ -99,13 +99,14 @@ export class GroqDescriptionGenerator implements IDescriptionGenerator {
     this.checkProactiveSwitch();
 
     return this.callGroqWithFallback(async (model: string) => {
-      const response = await this.client.chat.completions.create({
-        model,
-        max_tokens: 120,
-        messages: [
-          {
-            role: "user",
-            content: `Create a clear, actionable description for this webpage (max 20 words).
+      const { data, response } = await this.client.chat.completions
+        .create({
+          model,
+          max_tokens: 120,
+          messages: [
+            {
+              role: "user",
+              content: `Create a clear, actionable description for this webpage (max 20 words).
 
 Title: ${page.title}
 URL: ${page.url}
@@ -124,14 +125,15 @@ Good examples:
 - "Access YouTube's privacy settings and data controls."
 
 Output only the description, no quotes, no preamble.`,
-          },
-        ],
-      });
+            },
+          ],
+        })
+        .withResponse();
 
       // Update rate limit state from response headers (always present per Groq docs)
       this.updateRateLimitState(response);
 
-      const text = response.choices[0]?.message?.content?.trim() || "";
+      const text = data.choices[0]?.message?.content?.trim() || "";
       return text.replace(/^["']|["']$/g, "");
     });
   }
@@ -143,13 +145,14 @@ Output only the description, no quotes, no preamble.`,
     this.checkProactiveSwitch();
 
     return this.callGroqWithFallback(async (model: string) => {
-      const response = await this.client.chat.completions.create({
-        model,
-        max_tokens: 300,
-        messages: [
-          {
-            role: "user",
-            content: `Write a comprehensive summary for this website that will be consumed by LLMs.
+      const { data, response } = await this.client.chat.completions
+        .create({
+          model,
+          max_tokens: 300,
+          messages: [
+            {
+              role: "user",
+              content: `Write a comprehensive summary for this website that will be consumed by LLMs.
 
 Site Name: ${homepage.siteName || homepage.title}
 URL: ${homepage.url}
@@ -169,65 +172,34 @@ PARAGRAPH 2 (2-3 sentences starting with "For LLMs assisting users,"):
 - Important context, capabilities, or caveats LLMs should know
 
 Output the two paragraphs separated by a blank line. No preamble, no labels.`,
-          },
-        ],
-      });
+            },
+          ],
+        })
+        .withResponse();
 
       // Update rate limit state from response headers (always present per Groq docs)
       this.updateRateLimitState(response);
 
-      return response.choices[0]?.message?.content?.trim() || "";
+      return data.choices[0]?.message?.content?.trim() || "";
     });
   }
 
   /**
    * Update rate limit state from Groq response headers
    * Per Groq docs: All headers (except retry-after) are ALWAYS present in responses
+   * Uses .withResponse() to access raw HTTP Response object
    */
-  private updateRateLimitState(response: unknown): void {
+  private updateRateLimitState(response: Response): void {
     try {
-      // Groq SDK may expose headers in different ways depending on version
-      // Try multiple access patterns to ensure compatibility
-      const res = response as Record<string, unknown>;
-      const _request = res?._request as Record<string, unknown> | undefined;
-      const _response = res?.response as Record<string, unknown> | undefined;
-      const headers =
-        (_request?.response as Record<string, unknown> | undefined)?.headers ||
-        _response?.headers ||
-        res?.headers ||
-        null;
-
-      if (!headers) {
-        // Log once for debugging, but don't spam
-        if (Math.random() < 0.1) {
-          console.debug(
-            "[Groq] Could not access response headers. Available keys:",
-            Object.keys(response || {})
-          );
-        }
-        return;
-      }
-
-      // Helper to get header value (handles both Map and object-like headers)
-      const getHeader = (name: string): string | null => {
-        if (!headers) return null;
-
-        // Type guard for Map-like object with get method
-        if (typeof (headers as Record<string, unknown>).get === "function") {
-          const mapHeaders = headers as { get: (key: string) => string | null };
-          return mapHeaders.get(name);
-        }
-
-        // Type guard for object-like headers
-        const objHeaders = headers as Record<string, string>;
-        return objHeaders[name] || objHeaders[name.toLowerCase()] || null;
-      };
-
-      // Extract rate limit info (headers are always present per Groq docs)
-      const remainingRequests = getHeader("x-ratelimit-remaining-requests");
-      const remainingTokens = getHeader("x-ratelimit-remaining-tokens");
-      const resetRequests = getHeader("x-ratelimit-reset-requests");
-      const resetTokens = getHeader("x-ratelimit-reset-tokens");
+      // Access headers using Response.headers.get() (standard Web API)
+      const remainingRequests = response.headers.get(
+        "x-ratelimit-remaining-requests"
+      );
+      const remainingTokens = response.headers.get(
+        "x-ratelimit-remaining-tokens"
+      );
+      const resetRequests = response.headers.get("x-ratelimit-reset-requests");
+      const resetTokens = response.headers.get("x-ratelimit-reset-tokens");
 
       if (remainingRequests !== null) {
         this.rateLimitState = {
@@ -356,32 +328,15 @@ Output the two paragraphs separated by a blank line. No preamble, no labels.`,
    */
   private extractRetryAfter(error: unknown): number | null {
     try {
-      const err = error as Record<string, unknown>;
-      const response = err?.response as Record<string, unknown> | undefined;
-      const responseHeaders = response?.headers as
-        | Record<string, unknown>
-        | undefined;
-      const errorHeaders = err?.headers as Record<string, unknown> | undefined;
+      const err = error as { response?: Response };
 
-      // Try multiple access patterns for header extraction
-      const retryAfter =
-        (typeof responseHeaders?.get === "function"
-          ? (responseHeaders as { get: (key: string) => string | null }).get(
-              "retry-after"
-            )
-          : (responseHeaders as Record<string, string> | undefined)?.[
-              "retry-after"
-            ]) ||
-        (typeof errorHeaders?.get === "function"
-          ? (errorHeaders as { get: (key: string) => string | null }).get(
-              "retry-after"
-            )
-          : (errorHeaders as Record<string, string> | undefined)?.[
-              "retry-after"
-            ]) ||
-        null;
+      // Check if error has a Response object with headers
+      if (err.response?.headers?.get) {
+        const retryAfter = err.response.headers.get("retry-after");
+        return retryAfter ? parseInt(retryAfter, 10) : null;
+      }
 
-      return retryAfter ? parseInt(retryAfter, 10) : null;
+      return null;
     } catch {
       return null;
     }
