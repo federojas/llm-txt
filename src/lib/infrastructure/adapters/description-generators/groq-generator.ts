@@ -148,30 +148,34 @@ Output only the description, no quotes, no preamble.`,
       const { data, response } = await this.client.chat.completions
         .create({
           model,
-          max_tokens: 300,
+          max_tokens: 500,
           messages: [
             {
               role: "user",
-              content: `Write a comprehensive summary for this website that will be consumed by LLMs.
+              content: `Analyze this website and create a technical summary for LLMs.
 
 Site Name: ${homepage.siteName || homepage.title}
 URL: ${homepage.url}
 Description: ${homepage.ogDescription || homepage.description || "N/A"}
 H1: ${homepage.h1 || "N/A"}
+Body Text: ${homepage.bodyText || "N/A"}
 
-Structure your response as TWO paragraphs:
+Create TWO parts separated by "|||":
 
-PARAGRAPH 1 (2-3 sentences):
-- What the platform/service does
-- Who the primary users/audience are
-- Key value proposition or purpose
+FIRST PART (one sentence, 40-60 words):
+Write a technical summary mentioning specific technologies/frameworks from the body text above (e.g., "brings together Starlette, Uvicorn, HTMX"). If no tech details are in the body text, describe what the platform does generally.
 
-PARAGRAPH 2 (2-3 sentences starting with "For LLMs assisting users,"):
-- How LLMs should understand and explain this platform
-- Key use cases where LLM assistance would be valuable
-- Important context, capabilities, or caveats LLMs should know
+SECOND PART:
+If this is a technical tool/library/framework (not just informational), write "Things to remember when using ${homepage.siteName || homepage.title}:" followed by 3-5 bullet points extracted from the body text above. Use markdown bullets (- ).
 
-Output the two paragraphs separated by a blank line. No preamble, no labels.`,
+If it's just an informational site or body text has no technical details, write only: NONE
+
+IMPORTANT: Do NOT write "PART 1" or "PART 2" as headings. Just output the content directly.
+
+Example output:
+"FastHTML is a Python library combining Starlette, Uvicorn, and HTMX for server-rendered applications|||Things to remember when using FastHTML:\n\n- Not compatible with FastAPI syntax\n- Includes Pico CSS support (optional)"
+
+Your output:`,
             },
           ],
         })

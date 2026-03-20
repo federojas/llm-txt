@@ -8,6 +8,7 @@ import { LanguageDetectorService } from "@/lib/domain/services/language-detector
 import { GeneratorService } from "@/lib/domain/services/generator.service";
 import { DescriptionService } from "@/lib/domain/services/description.service";
 import { DescriptionGeneratorFactory } from "@/lib/infrastructure/adapters/description-generators";
+import { GhosteryAdBlockerAdapter } from "@/lib/infrastructure/adapters/ghostery-ad-blocker.adapter";
 import { getPresetMaxPages, getPresetMaxDepth } from "@/lib/config";
 import { NotFoundError, InternalServerError } from "@/lib/api/errors";
 import { CrawlConfig, PageMetadata } from "@/lib/domain/models";
@@ -82,11 +83,15 @@ export class GenerateLlmsTxt {
     // Relies on Accept-Language header forcing English at HTTP layer
     const languageDetector = new LanguageDetectorService();
 
+    // Initialize ad blocker for external link filtering
+    const adBlocker = new GhosteryAdBlockerAdapter();
+
     const crawler = new CrawlerService(
       config,
       undefined,
       undefined,
-      languageDetector
+      languageDetector,
+      adBlocker
     );
     return crawler.crawl();
   }

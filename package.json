@@ -17,6 +17,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@ghostery/adblocker": "^2.14.1",
     "axios": "^1.13.6",
     "cheerio": "^1.2.0",
     "franc-min": "^6.2.0",

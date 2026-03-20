@@ -10,24 +10,28 @@ import * as cheerio from "cheerio";
 
 type CheerioAPI = ReturnType<typeof cheerio.load>;
 import { IHtmlParser } from "@/lib/domain/interfaces/html-parser.interface";
-import { PageMetadata } from "@/lib/domain/models";
+import { IAdBlocker } from "@/lib/domain/interfaces/ad-blocker.interface";
+import { PageMetadata, ExternalLink } from "@/lib/domain/models";
 import { toAbsoluteUrl } from "../utilities/url-helpers";
 import { normalizeUrl } from "../../domain/logic/url-normalization";
 import {
   isInternalUrl,
   getUrlDepth,
 } from "../../domain/logic/url-classification";
+import { isValuableExternalLink } from "../../domain/logic/external-link-filter";
 
 export class CheerioHtmlParser implements IHtmlParser {
+  constructor(private adBlocker: IAdBlocker) {}
   /**
    * Extract structured metadata from HTML using Cheerio
+   * Note: Async to support external link filtering with ad blocker engine
    */
-  extractMetadata(
+  async extractMetadata(
     html: string,
     url: string,
     baseUrl: string,
     depth: number
-  ): PageMetadata {
+  ): Promise<PageMetadata> {
     const $ = cheerio.load(html);
 
     return {
@@ -40,8 +44,10 @@ export class CheerioHtmlParser implements IHtmlParser {
       h1: this.extractH1($),
       siteName: this.extractSiteName($),
       lang: this.extractLanguage($),
+      bodyText: this.extractBodyText($),
       depth,
       internalLinks: this.extractInternalLinks($, url, baseUrl, depth),
+      externalLinks: await this.extractExternalLinks($, url, baseUrl),
     };
   }
 
@@ -137,6 +143,41 @@ export class CheerioHtmlParser implements IHtmlParser {
   }
 
   /**
+   * Extract main body text for AI context
+   * Priority: <main> → <article> → <body>
+   * Limits to ~1500 chars to fit in AI prompts
+   */
+  private extractBodyText($: CheerioAPI): string | undefined {
+    // Try to find main content area
+    let text = "";
+
+    // Priority 1: <main> tag
+    const main = $("main").first();
+    if (main.length > 0) {
+      text = main.text();
+    } else {
+      // Priority 2: <article> tag
+      const article = $("article").first();
+      if (article.length > 0) {
+        text = article.text();
+      } else {
+        // Priority 3: <body> (remove scripts, styles, nav, footer)
+        const body = $("body").clone();
+        body.find("script, style, nav, footer, header, aside").remove();
+        text = body.text();
+      }
+    }
+
+    // Clean up: normalize whitespace, limit length
+    text = text
+      .replace(/\s+/g, " ") // Collapse multiple spaces
+      .trim()
+      .slice(0, 1500); // Limit to 1500 chars
+
+    return text || undefined;
+  }
+
+  /**
    * Extract internal links with depth filtering
    * Business rule: Only include links that don't exceed depth limit
    */
@@ -148,7 +189,7 @@ export class CheerioHtmlParser implements IHtmlParser {
   ): string[] {
     const links: string[] = [];
 
-    $("a[href]").each((_: number, element: cheerio.Element) => {
+    $("a[href]").each((_: number, element) => {
       const href = $(element).attr("href");
       if (!href) return;
 
@@ -170,5 +211,96 @@ export class CheerioHtmlParser implements IHtmlParser {
 
     // Deduplicate
     return [...new Set(links)];
+  }
+
+  /**
+   * Extract valuable external links (repos, docs, APIs)
+   * Filters out ads, tracking, social media using industry-standard practices
+   */
+  private async extractExternalLinks(
+    $: CheerioAPI,
+    currentUrl: string,
+    baseUrl: string
+  ): Promise<ExternalLink[]> {
+    const links: ExternalLink[] = [];
+    const seen = new Set<string>();
+    const candidates: Array<{
+      url: string;
+      rel?: string;
+      title?: string;
+      context?: "main" | "footer" | "nav" | "aside";
+    }> = [];
+
+    // First pass: collect all external link candidates
+    $("a[href]").each((_: number, element) => {
+      const href = $(element).attr("href");
+      if (!href) return;
+
+      try {
+        const absoluteUrl = toAbsoluteUrl(href, currentUrl);
+
+        // Skip internal links
+        if (isInternalUrl(absoluteUrl, baseUrl)) {
+          return;
+        }
+
+        // Get link metadata
+        const rel = $(element).attr("rel");
+        const title = $(element).attr("title") || $(element).text().trim();
+
+        // Determine HTML context
+        const $closest = $(element).closest(
+          "main, article, footer, nav, aside"
+        );
+        let context: "main" | "footer" | "nav" | "aside" | undefined;
+        if ($closest.length > 0) {
+          const tagName = $closest.prop("tagName")?.toLowerCase();
+          if (tagName === "main" || tagName === "article") {
+            context = "main";
+          } else if (tagName === "footer") {
+            context = "footer";
+          } else if (tagName === "nav") {
+            context = "nav";
+          } else if (tagName === "aside") {
+            context = "aside";
+          }
+        }
+
+        candidates.push({
+          url: absoluteUrl,
+          rel,
+          title: title || undefined,
+          context,
+        });
+      } catch {
+        // Skip invalid URLs
+      }
+    });
+
+    // Second pass: filter asynchronously using industry-standard practices
+    for (const candidate of candidates) {
+      if (seen.has(candidate.url)) {
+        continue;
+      }
+
+      const isInMainContent = candidate.context === "main";
+      const isValuable = await isValuableExternalLink(
+        candidate.url,
+        this.adBlocker,
+        candidate.rel,
+        isInMainContent
+      );
+
+      if (isValuable) {
+        seen.add(candidate.url);
+        links.push({
+          url: candidate.url,
+          title: candidate.title,
+          context: candidate.context,
+        });
+      }
+    }
+
+    return links;
   }
 }

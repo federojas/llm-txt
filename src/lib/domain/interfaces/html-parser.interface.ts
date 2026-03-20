@@ -11,6 +11,7 @@ import { PageMetadata } from "../models";
 export interface IHtmlParser {
   /**
    * Extract structured metadata from HTML content
+   * Note: Async to support external link filtering with ad blocker engine
    *
    * @param html - Raw HTML string
    * @param url - Page URL (for context and link resolution)
@@ -23,7 +24,7 @@ export interface IHtmlParser {
     url: string,
     baseUrl: string,
     depth: number
-  ): PageMetadata;
+  ): Promise<PageMetadata>;
 
   /**
    * Check if page should be indexed

@@ -256,7 +256,13 @@ export function getUrlDepth(url: string, baseUrl: string): number {
     const urlObj = new URL(url);
     const baseObj = new URL(baseUrl);
 
-    if (urlObj.hostname !== baseObj.hostname) {
+    // Normalize hostnames by removing www prefix for comparison
+    const normalizeHostname = (hostname: string) =>
+      hostname.replace(/^www\./i, "");
+
+    if (
+      normalizeHostname(urlObj.hostname) !== normalizeHostname(baseObj.hostname)
+    ) {
       return Infinity;
     }
 
@@ -306,7 +312,15 @@ export function isInternalUrl(url: string, baseUrl: string): boolean {
   try {
     const urlObj = new URL(url, baseUrl);
     const baseObj = new URL(baseUrl);
-    return urlObj.hostname === baseObj.hostname;
+
+    // Normalize hostnames by removing www prefix for comparison
+    // Treats www.example.com and example.com as same domain
+    const normalizeHostname = (hostname: string) =>
+      hostname.replace(/^www\./i, "");
+
+    return (
+      normalizeHostname(urlObj.hostname) === normalizeHostname(baseObj.hostname)
+    );
   } catch {
     return false;
   }

@@ -2,6 +2,7 @@ import {
   PageMetadata,
   LlmsTxtOutput,
   LlmsTxtSection,
+  ExternalLink,
 } from "@/lib/domain/models";
 import { classifyUrl } from "../logic/url-classification";
 import { normalizeUrlForOutput } from "../logic/url-normalization";
@@ -40,8 +41,11 @@ export class GeneratorService {
     const name = this.determineProjectName(homepage, projectName);
 
     // Generate business summary for homepage
-    const summary =
+    const summaryResponse =
       await this.descriptionService.generateBusinessSummary(homepage);
+
+    // Parse summary response (format: "summary|||details" or just "summary")
+    const { summary, details } = this.parseSummaryResponse(summaryResponse);
 
     // Generate descriptions for all pages (rate limiting handled by generator)
     const aiDescriptions =
@@ -50,8 +54,15 @@ export class GeneratorService {
     // Classify and group pages
     const classified = this.classifyPages(pages);
 
-    // Build sections with AI descriptions
-    const sections = this.buildSections(classified, aiDescriptions);
+    // Collect all external links from crawled pages
+    const externalLinks = this.collectExternalLinks(pages);
+
+    // Build sections with AI descriptions (includes both pages and external links)
+    const sections = this.buildSections(
+      classified,
+      aiDescriptions,
+      externalLinks
+    );
 
     // Separate optional/secondary content
     const { mainSections, optionalSection } =
@@ -60,6 +71,7 @@ export class GeneratorService {
     return {
       projectName: name,
       summary,
+      details,
       sections: mainSections,
       optionalSection,
     };
@@ -103,6 +115,35 @@ export class GeneratorService {
   }
 
   /**
+   * Parse summary response from AI
+   * Format: "summary|||details" or just "summary"
+   * Details are optional (e.g., "Things to remember when using X:")
+   */
+  private parseSummaryResponse(response: string): {
+    summary: string;
+    details?: string;
+  } {
+    const parts = response.split("|||");
+
+    if (parts.length === 1) {
+      return { summary: parts[0].trim() };
+    }
+
+    const summary = parts[0].trim();
+    const detailsPart = parts[1].trim();
+
+    // If details section is "NONE", don't include it
+    if (detailsPart === "NONE" || !detailsPart) {
+      return { summary };
+    }
+
+    return {
+      summary,
+      details: detailsPart,
+    };
+  }
+
+  /**
    * Classify pages by type using hybrid classification
    * Passes metadata and sitemap data for best accuracy
    */
@@ -127,11 +168,34 @@ export class GeneratorService {
   }
 
   /**
-   * Build sections from classified pages
+   * Collect all external links from crawled pages
+   * Aggregates valuable external resources (GitHub repos, docs, APIs)
+   */
+  private collectExternalLinks(pages: PageMetadata[]): ExternalLink[] {
+    const allLinks: ExternalLink[] = [];
+    const seen = new Set<string>();
+
+    for (const page of pages) {
+      if (!page.externalLinks) continue;
+
+      for (const link of page.externalLinks) {
+        if (!seen.has(link.url)) {
+          seen.add(link.url);
+          allLinks.push(link);
+        }
+      }
+    }
+
+    return allLinks;
+  }
+
+  /**
+   * Build sections from classified pages and external links
    */
   private buildSections(
     classified: Map<string, PageMetadata[]>,
-    aiDescriptions: Map<string, string>
+    aiDescriptions: Map<string, string>,
+    externalLinks: ExternalLink[]
   ): LlmsTxtSection[] {
     const sections: LlmsTxtSection[] = [];
 
@@ -187,25 +251,60 @@ export class GeneratorService {
       }
     }
 
+    // Add external links section if any valuable external resources found
+    if (externalLinks.length > 0) {
+      sections.push({
+        title: "External Resources",
+        links: externalLinks.slice(0, 10).map((link) => ({
+          title: link.title || new URL(link.url).hostname,
+          url: link.url,
+          description: undefined, // External links don't have descriptions yet
+        })),
+      });
+    }
+
     return sections;
   }
 
   /**
    * Separate optional content from main sections
+   * Per llms.txt spec: Optional section contains secondary info that can be skipped
+   *
+   * Strategy: Keep main sections focused (Overview, core Docs, API, Examples)
+   * Move everything else to Optional (tutorials, guides, FAQ, extra docs, blog)
    */
   private separateOptionalContent(sections: LlmsTxtSection[]): {
     mainSections: LlmsTxtSection[];
     optionalSection?: LlmsTxtSection;
   } {
-    const lowPrioritySections = ["Blog", "Additional Resources"];
+    // Core sections that stay in main area (limit to 3-5 links each)
+    const coreSections = ["Overview", "Documentation", "API Reference"];
 
-    const mainSections = sections.filter(
-      (s) => !lowPrioritySections.includes(s.title)
-    );
+    // Everything else goes to Optional
+    const mainSections: LlmsTxtSection[] = [];
+    const optionalLinks: Array<{
+      title: string;
+      url: string;
+      description?: string;
+    }> = [];
 
-    const optionalLinks = sections
-      .filter((s) => lowPrioritySections.includes(s.title))
-      .flatMap((s) => s.links);
+    for (const section of sections) {
+      if (coreSections.includes(section.title)) {
+        // Keep core sections but limit links (top 5 most important)
+        mainSections.push({
+          title: section.title,
+          links: section.links.slice(0, 5),
+        });
+
+        // Overflow goes to Optional
+        if (section.links.length > 5) {
+          optionalLinks.push(...section.links.slice(5));
+        }
+      } else {
+        // Everything else (About, Guides, Tutorials, Blog, External, etc.) goes to Optional
+        optionalLinks.push(...section.links);
+      }
+    }
 
     const optionalSection =
       optionalLinks.length > 0
@@ -231,6 +330,12 @@ export class GeneratorService {
     // Blockquote - Summary (optional)
     if (output.summary) {
       lines.push(`> ${output.summary}`);
+      lines.push("");
+    }
+
+    // Details section (optional, e.g., "Things to remember...")
+    if (output.details) {
+      lines.push(output.details);
       lines.push("");
     }
 
