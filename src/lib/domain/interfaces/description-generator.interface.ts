@@ -1,4 +1,4 @@
-import { PageMetadata } from "@/lib/domain/models";
+import { PageMetadata, SectionGroup } from "@/lib/domain/models";
 
 /**
  * Interface for description generation strategies
@@ -18,6 +18,14 @@ export interface IDescriptionGenerator {
    * @returns 2-3 sentence business summary
    */
   generateBusinessSummary(homepage: PageMetadata): Promise<string>;
+
+  /**
+   * Discover logical sections by analyzing page titles and URLs using AI
+   * Groups pages into cohesive sections (e.g., "About", "Documentation", "Legal")
+   * @param pages - All crawled pages (excluding homepage)
+   * @returns Section groupings with names and page assignments
+   */
+  discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]>;
 
   /**
    * Check if the generator is available/configured

@@ -1,5 +1,5 @@
 import { IDescriptionGenerator, IDescriptionService } from "../interfaces";
-import { PageMetadata } from "@/lib/domain/models";
+import { PageMetadata, SectionGroup } from "@/lib/domain/models";
 
 /**
  * Description Service (Domain Layer)
@@ -44,6 +44,24 @@ export class DescriptionService implements IDescriptionService {
     }
 
     return descriptions;
+  }
+
+  /**
+   * Discover sections using AI clustering or fallback to heuristics
+   */
+  async discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]> {
+    if (this.primaryGenerator.isAvailable()) {
+      try {
+        return await this.primaryGenerator.discoverSections(pages);
+      } catch (error) {
+        console.warn(
+          "Primary description generator failed for section discovery, using fallback:",
+          error
+        );
+      }
+    }
+
+    return await this.fallbackGenerator.discoverSections(pages);
   }
 
   /**

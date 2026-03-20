@@ -14,3 +14,4 @@ export * from "./page/metadata";
 // Output models
 export * from "./output/link-item";
 export * from "./output/llms-txt";
+export * from "./output/section-group";

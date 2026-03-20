@@ -1,4 +1,4 @@
-import { PageMetadata } from "@/lib/domain/models";
+import { PageMetadata, SectionGroup } from "@/lib/domain/models";
 
 /**
  * Interface for description service
@@ -18,4 +18,11 @@ export interface IDescriptionService {
    * @returns Map of URL to description
    */
   generateDescriptions(pages: PageMetadata[]): Promise<Map<string, string>>;
+
+  /**
+   * Discover logical sections by analyzing page titles and URLs
+   * @param pages - Array of page metadata (excluding homepage)
+   * @returns Section groupings with names and page assignments
+   */
+  discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]>;
 }

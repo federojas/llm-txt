@@ -3,6 +3,7 @@ import {
   LlmsTxtOutput,
   LlmsTxtSection,
   ExternalLink,
+  SectionGroup,
 } from "@/lib/domain/models";
 import { classifyUrl } from "../logic/url-classification";
 import { normalizeUrlForOutput } from "../logic/url-normalization";
@@ -51,15 +52,21 @@ export class GeneratorService {
     const aiDescriptions =
       await this.descriptionService.generateDescriptions(pages);
 
-    // Classify and group pages
-    const classified = this.classifyPages(pages);
+    // Separate homepage from other pages
+    const nonHomepagePages = pages.filter((p) => p !== homepage);
+
+    // AI-powered section discovery: Let AI analyze titles/URLs to create logical groupings
+    const sectionGroups =
+      await this.descriptionService.discoverSections(nonHomepagePages);
 
     // Collect all external links from crawled pages
     const externalLinks = this.collectExternalLinks(pages);
 
-    // Build sections with AI descriptions (includes both pages and external links)
-    const sections = this.buildSections(
-      classified,
+    // Build sections using AI-discovered groupings
+    const sections = this.buildSectionsFromAI(
+      nonHomepagePages,
+      sectionGroups,
+      homepage,
       aiDescriptions,
       externalLinks
     );
@@ -190,7 +197,77 @@ export class GeneratorService {
   }
 
   /**
-   * Build sections from classified pages and external links
+   * Build sections using AI-discovered groupings
+   */
+  private buildSectionsFromAI(
+    pages: PageMetadata[],
+    sectionGroups: SectionGroup[],
+    homepage: PageMetadata,
+    aiDescriptions: Map<string, string>,
+    externalLinks: ExternalLink[]
+  ): LlmsTxtSection[] {
+    const sections: LlmsTxtSection[] = [];
+
+    // Add Overview section with homepage
+    sections.push({
+      title: "Overview",
+      links: [
+        {
+          title: homepage.title,
+          url: normalizeUrlForOutput(homepage.url),
+          description: aiDescriptions.get(homepage.url) || homepage.description,
+        },
+      ],
+    });
+
+    // Add AI-discovered sections
+    for (const group of sectionGroups) {
+      const groupPages = group.pageIndexes.map((idx: number) => pages[idx]);
+
+      // Deduplicate and sort
+      const normalized = new Map<string, PageMetadata>();
+      for (const page of groupPages) {
+        const normalizedUrl = normalizeUrlForOutput(page.url);
+        if (!normalized.has(normalizedUrl)) {
+          normalized.set(normalizedUrl, page);
+        }
+      }
+
+      const deduplicatedPages = Array.from(normalized.values());
+      const sortedPages = deduplicatedPages.sort((a, b) => {
+        if (a.depth !== b.depth) return a.depth - b.depth;
+        return a.title.localeCompare(b.title);
+      });
+
+      if (sortedPages.length > 0) {
+        sections.push({
+          title: group.name,
+          links: sortedPages.map((page) => ({
+            title: page.title,
+            url: normalizeUrlForOutput(page.url),
+            description: aiDescriptions.get(page.url) || page.description,
+          })),
+        });
+      }
+    }
+
+    // Add external links section if any
+    if (externalLinks.length > 0) {
+      sections.push({
+        title: "External Resources",
+        links: externalLinks.slice(0, 10).map((link) => ({
+          title: link.title || new URL(link.url).hostname,
+          url: link.url,
+          description: undefined,
+        })),
+      });
+    }
+
+    return sections;
+  }
+
+  /**
+   * Build sections from classified pages and external links (legacy method)
    */
   private buildSections(
     classified: Map<string, PageMetadata[]>,
@@ -237,7 +314,7 @@ export class GeneratorService {
           if (a.depth !== b.depth) return a.depth - b.depth;
           return a.title.localeCompare(b.title);
         })
-        .slice(0, 10); // Limit to 10 for focused output
+        .slice(0, 15); // Increased limit for better coverage
 
       if (sortedPages.length > 0) {
         sections.push({
@@ -270,17 +347,36 @@ export class GeneratorService {
    * Separate optional content from main sections
    * Per llms.txt spec: Optional section contains secondary info that can be skipped
    *
-   * Strategy: Keep main sections focused (Overview, core Docs, API, Examples)
-   * Move everything else to Optional (tutorials, guides, FAQ, extra docs, blog)
+   * Adaptive strategy:
+   * - For technical sites (docs/API): Keep Overview, Documentation, API as main, rest as optional
+   * - For general sites (YouTube): Keep top sections as main (About, Creators, Legal), rest as optional
+   * - Always limit main sections to avoid overwhelming output
    */
   private separateOptionalContent(sections: LlmsTxtSection[]): {
     mainSections: LlmsTxtSection[];
     optionalSection?: LlmsTxtSection;
   } {
-    // Core sections that stay in main area (limit to 3-5 links each)
-    const coreSections = ["Overview", "Documentation", "API Reference"];
+    // Detect site type by what sections exist
+    const sectionTitles = sections.map((s) => s.title);
+    const hasDocs = sectionTitles.includes("Documentation");
+    const hasAPI = sectionTitles.includes("API Reference");
+    const isTechnicalSite = hasDocs || hasAPI;
 
-    // Everything else goes to Optional
+    // Define core sections based on site type
+    let coreSections: string[];
+    let maxLinksPerSection: number;
+
+    if (isTechnicalSite) {
+      // Technical site: prioritize docs/API
+      coreSections = ["Overview", "Documentation", "API Reference", "Guides"];
+      maxLinksPerSection = 5;
+    } else {
+      // General site: keep first few sections as main, rest as optional
+      // This adapts to the site's actual structure (About, Creators, Legal, etc.)
+      coreSections = sectionTitles.slice(0, 4); // Keep first 4 sections as main
+      maxLinksPerSection = 10;
+    }
+
     const mainSections: LlmsTxtSection[] = [];
     const optionalLinks: Array<{
       title: string;
@@ -290,18 +386,18 @@ export class GeneratorService {
 
     for (const section of sections) {
       if (coreSections.includes(section.title)) {
-        // Keep core sections but limit links (top 5 most important)
+        // Keep as main section but limit links
         mainSections.push({
           title: section.title,
-          links: section.links.slice(0, 5),
+          links: section.links.slice(0, maxLinksPerSection),
         });
 
         // Overflow goes to Optional
-        if (section.links.length > 5) {
-          optionalLinks.push(...section.links.slice(5));
+        if (section.links.length > maxLinksPerSection) {
+          optionalLinks.push(...section.links.slice(maxLinksPerSection));
         }
       } else {
-        // Everything else (About, Guides, Tutorials, Blog, External, etc.) goes to Optional
+        // Secondary sections go to Optional
         optionalLinks.push(...section.links);
       }
     }

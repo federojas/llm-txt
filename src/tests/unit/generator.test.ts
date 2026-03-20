@@ -41,6 +41,23 @@ describe("LLMs.txt Generator", () => {
       }
       return descriptions;
     },
+    discoverSections: async (pages: PageMetadata[]) => {
+      // Mock section discovery: group by URL patterns
+      return [
+        {
+          name: "Documentation",
+          pageIndexes: pages
+            .map((p, idx) => (p.url.includes("/docs") ? idx : -1))
+            .filter((idx) => idx !== -1),
+        },
+        {
+          name: "API Reference",
+          pageIndexes: pages
+            .map((p, idx) => (p.url.includes("/api") ? idx : -1))
+            .filter((idx) => idx !== -1),
+        },
+      ];
+    },
   };
 
   describe("GeneratorService", () => {

@@ -1,5 +1,6 @@
 import { IDescriptionGenerator } from "@/lib/domain/interfaces/description-generator.interface";
-import { PageMetadata } from "@/lib/domain/models";
+import { PageMetadata, SectionGroup } from "@/lib/domain/models";
+import { classifyUrl } from "@/lib/domain/logic/url-classification";
 
 /**
  * Heuristic description generator
@@ -120,5 +121,63 @@ export class HeuristicDescriptionGenerator implements IDescriptionGenerator {
       .trim();
 
     return topic || title;
+  }
+
+  /**
+   * Heuristic section discovery (fallback when AI is unavailable)
+   * Groups pages by URL pattern classification
+   */
+  async discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]> {
+    // Group pages by category using URL classification
+    const groups = new Map<string, number[]>();
+
+    pages.forEach((page, idx) => {
+      const category = classifyUrl(page.url, page);
+      if (!groups.has(category)) {
+        groups.set(category, []);
+      }
+      groups.get(category)!.push(idx);
+    });
+
+    // Map categories to section names
+    const categoryToSectionName: Record<string, string> = {
+      documentation: "Documentation",
+      guides: "Guides",
+      tutorials: "Tutorials",
+      api: "API Reference",
+      about: "About",
+      creators: "Creators & Advertisers",
+      legal: "Legal & Policies",
+      blog: "Blog",
+      pricing: "Pricing",
+      other: "Additional Resources",
+    };
+
+    // Convert to SectionGroup format
+    const sections: SectionGroup[] = [];
+    const sectionOrder = [
+      "documentation",
+      "guides",
+      "tutorials",
+      "api",
+      "about",
+      "creators",
+      "legal",
+      "blog",
+      "pricing",
+      "other",
+    ];
+
+    for (const category of sectionOrder) {
+      const pageIndexes = groups.get(category);
+      if (pageIndexes && pageIndexes.length > 0) {
+        sections.push({
+          name: categoryToSectionName[category] || category,
+          pageIndexes,
+        });
+      }
+    }
+
+    return sections;
   }
 }
