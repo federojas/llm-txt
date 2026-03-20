@@ -32,6 +32,13 @@ export class LanguageDetectorService implements ILanguageDetector {
       }
     }
 
+    // Pre-compute text-based detection (call franc-min once)
+    // Use this for sanity checks against metadata that claims "en"
+    let textLang: string | null = null;
+    if (text && text.length >= 50) {
+      textLang = this.detectWithFranc(text);
+    }
+
     // Tier 2: HTTP Content-Language response header (server's declaration)
     if (contentLanguageHeader) {
       const headerLang = contentLanguageHeader
@@ -40,6 +47,10 @@ export class LanguageDetectorService implements ILanguageDetector {
         .split(",")[0]
         .trim();
       if (this.isValidISO6391Code(headerLang)) {
+        // Sanity check: If header claims "en" but text is clearly non-English, trust text
+        if (headerLang === "en" && textLang && textLang !== "en") {
+          return textLang; // Catches geo-based serving (YouTube Spanish pages)
+        }
         return headerLang;
       }
     }
@@ -48,17 +59,17 @@ export class LanguageDetectorService implements ILanguageDetector {
     if (htmlLangAttribute) {
       const normalizedLang = htmlLangAttribute.toLowerCase().split("-")[0];
       if (this.isValidISO6391Code(normalizedLang)) {
+        // Sanity check: If HTML claims "en" but text is clearly non-English, trust text
+        if (normalizedLang === "en" && textLang && textLang !== "en") {
+          return textLang; // Catches incorrect HTML metadata
+        }
         return normalizedLang;
       }
     }
 
-    // Tier 4: Text-based detection (franc-min) for edge cases
-    // Only analyze substantial text to avoid false positives on short strings
-    if (text && text.length >= 50) {
-      const detectedLang = this.detectWithFranc(text);
-      if (detectedLang && detectedLang !== "und") {
-        return detectedLang;
-      }
+    // Tier 4: Text-based detection (franc-min) for pages with missing metadata
+    if (textLang) {
+      return textLang;
     }
 
     // Tier 5: Default to English

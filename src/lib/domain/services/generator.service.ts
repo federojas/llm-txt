@@ -154,15 +154,18 @@ export class GeneratorService {
       if (!pages || pages.length === 0) continue;
 
       // Deduplicate by normalized URL (strips all query params for output)
-      const seen = new Set<string>();
-      const deduplicatedPages = pages.filter((page) => {
-        const normalized = normalizeUrlForOutput(page.url);
-        if (seen.has(normalized)) {
-          return false;
+      // Note: All URLs are already https:// from crawling (forceHttps: true)
+      const normalized = new Map<string, PageMetadata>();
+
+      for (const page of pages) {
+        const normalizedUrl = normalizeUrlForOutput(page.url);
+
+        if (!normalized.has(normalizedUrl)) {
+          normalized.set(normalizedUrl, page);
         }
-        seen.add(normalized);
-        return true;
-      });
+      }
+
+      const deduplicatedPages = Array.from(normalized.values());
 
       // Sort by depth (shallower = more important) and title
       const sortedPages = deduplicatedPages
