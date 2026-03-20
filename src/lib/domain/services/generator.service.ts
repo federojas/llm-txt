@@ -52,6 +52,14 @@ export class GeneratorService {
     const aiDescriptions =
       await this.descriptionService.generateDescriptions(pages);
 
+    // Clean all page titles (removes redundant suffixes like "About - Site - Site")
+    const allTitles = pages.map((p) => p.title);
+    const cleanedTitles = await this.descriptionService.cleanTitles(allTitles);
+    const cleanedTitleMap = new Map<string, string>();
+    pages.forEach((page, idx) => {
+      cleanedTitleMap.set(page.url, cleanedTitles[idx]);
+    });
+
     // Separate homepage from other pages
     const nonHomepagePages = pages.filter((p) => p !== homepage);
 
@@ -68,6 +76,7 @@ export class GeneratorService {
       sectionGroups,
       homepage,
       aiDescriptions,
+      cleanedTitleMap,
       externalLinks
     );
 
@@ -204,6 +213,7 @@ export class GeneratorService {
     sectionGroups: SectionGroup[],
     homepage: PageMetadata,
     aiDescriptions: Map<string, string>,
+    cleanedTitleMap: Map<string, string>,
     externalLinks: ExternalLink[]
   ): LlmsTxtSection[] {
     const sections: LlmsTxtSection[] = [];
@@ -213,7 +223,7 @@ export class GeneratorService {
       title: "Overview",
       links: [
         {
-          title: homepage.title,
+          title: cleanedTitleMap.get(homepage.url) || homepage.title,
           url: normalizeUrlForOutput(homepage.url),
           description: aiDescriptions.get(homepage.url) || homepage.description,
         },
@@ -243,7 +253,7 @@ export class GeneratorService {
         sections.push({
           title: group.name,
           links: sortedPages.map((page) => ({
-            title: page.title,
+            title: cleanedTitleMap.get(page.url) || page.title,
             url: normalizeUrlForOutput(page.url),
             description: aiDescriptions.get(page.url) || page.description,
           })),

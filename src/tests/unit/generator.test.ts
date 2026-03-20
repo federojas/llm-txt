@@ -33,6 +33,8 @@ describe("LLMs.txt Generator", () => {
 
   // Mock description service
   const mockDescriptionService: IDescriptionService = {
+    isAvailable: () => true,
+    generateDescription: async (page: PageMetadata) => page.description || "",
     generateBusinessSummary: async () => "A comprehensive example site",
     generateDescriptions: async (pages: PageMetadata[]) => {
       const descriptions = new Map<string, string>();
@@ -57,6 +59,10 @@ describe("LLMs.txt Generator", () => {
             .filter((idx) => idx !== -1),
         },
       ];
+    },
+    cleanTitles: async (titles: string[]) => {
+      // Mock title cleaning: just return titles as-is for tests
+      return titles;
     },
   };
 

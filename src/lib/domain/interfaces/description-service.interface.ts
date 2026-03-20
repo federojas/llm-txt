@@ -1,28 +1,20 @@
-import { PageMetadata, SectionGroup } from "@/lib/domain/models";
+import { IDescriptionGenerator } from "./description-generator.interface";
+import { PageMetadata } from "@/lib/domain/models";
 
 /**
  * Interface for description service
  * Orchestrates description generation with fallback handling
+ *
+ * Extends IDescriptionGenerator to maintain compatibility while providing
+ * a semantic distinction between strategy implementations and the orchestrator.
+ * This allows future extension with orchestration-specific methods if needed.
  */
-export interface IDescriptionService {
+export interface IDescriptionService extends IDescriptionGenerator {
   /**
-   * Generate a business summary for the homepage
-   * @param homepage - Homepage metadata
-   * @returns 2-3 sentence business summary
-   */
-  generateBusinessSummary(homepage: PageMetadata): Promise<string>;
-
-  /**
-   * Generate descriptions for multiple pages
+   * Generate descriptions for multiple pages in batch
+   * Processes sequentially to respect rate limits
    * @param pages - Array of page metadata
    * @returns Map of URL to description
    */
   generateDescriptions(pages: PageMetadata[]): Promise<Map<string, string>>;
-
-  /**
-   * Discover logical sections by analyzing page titles and URLs
-   * @param pages - Array of page metadata (excluding homepage)
-   * @returns Section groupings with names and page assignments
-   */
-  discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]>;
 }

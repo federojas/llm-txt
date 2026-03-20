@@ -14,7 +14,7 @@ import {
 describe("URL Utilities", () => {
   describe("normalizeUrl", () => {
     it("should remove trailing slashes", () => {
-      expect(normalizeUrl("https://example.com/")).toBe("https://example.com/");
+      expect(normalizeUrl("https://example.com/")).toBe("https://example.com");
       expect(normalizeUrl("https://example.com/path/")).toBe(
         "https://example.com/path"
       );

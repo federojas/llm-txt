@@ -28,6 +28,14 @@ export interface IDescriptionGenerator {
   discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]>;
 
   /**
+   * Clean page titles by removing redundant suffixes and site names
+   * Example: "About Us - FastHTML - FastHTML" → "About Us"
+   * @param titles - Array of page titles to clean
+   * @returns Cleaned titles in same order
+   */
+  cleanTitles(titles: string[]): Promise<string[]>;
+
+  /**
    * Check if the generator is available/configured
    */
   isAvailable(): boolean;

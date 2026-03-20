@@ -4,12 +4,24 @@ import { PageMetadata, SectionGroup } from "@/lib/domain/models";
 /**
  * Description Service (Domain Layer)
  * Orchestrates description generation with fallback handling
+ * Implements IDescriptionService (which extends IDescriptionGenerator) to provide
+ * transparent fallback between AI and heuristic strategies
  */
 export class DescriptionService implements IDescriptionService {
   constructor(
     private primaryGenerator: IDescriptionGenerator,
     private fallbackGenerator: IDescriptionGenerator
   ) {}
+
+  /**
+   * Check if any generator is available
+   */
+  isAvailable(): boolean {
+    return (
+      this.primaryGenerator.isAvailable() ||
+      this.fallbackGenerator.isAvailable()
+    );
+  }
 
   /**
    * Generate business summary for homepage
@@ -65,9 +77,27 @@ export class DescriptionService implements IDescriptionService {
   }
 
   /**
+   * Clean page titles using AI or fallback to heuristic patterns
+   */
+  async cleanTitles(titles: string[]): Promise<string[]> {
+    if (this.primaryGenerator.isAvailable()) {
+      try {
+        return await this.primaryGenerator.cleanTitles(titles);
+      } catch (error) {
+        console.warn(
+          "Primary description generator failed for title cleaning, using fallback:",
+          error
+        );
+      }
+    }
+
+    return await this.fallbackGenerator.cleanTitles(titles);
+  }
+
+  /**
    * Generate description for a single page with fallback
    */
-  private async generateDescription(page: PageMetadata): Promise<string> {
+  async generateDescription(page: PageMetadata): Promise<string> {
     if (this.primaryGenerator.isAvailable()) {
       try {
         return await this.primaryGenerator.generateDescription(page);

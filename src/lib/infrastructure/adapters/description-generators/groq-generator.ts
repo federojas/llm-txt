@@ -264,6 +264,86 @@ CRITICAL: Output ONLY valid JSON. Every page index (0-${pages.length - 1}) must 
   }
 
   /**
+   * Clean page titles in batch to remove redundant suffixes and site names
+   * Example: ["About Us - FastHTML - FastHTML", "Docs - Site"] → ["About Us", "Docs"]
+   * Uses a single LLM call for all titles for efficiency
+   */
+  async cleanTitles(titles: string[]): Promise<string[]> {
+    // Skip cleaning if no titles or only one title
+    if (titles.length === 0) return titles;
+    if (titles.length === 1) return titles; // Single title likely clean already
+
+    await this.rateLimiter.waitForToken();
+    this.checkProactiveSwitch();
+
+    // Create numbered list of titles for LLM
+    const titleList = titles.map((title, idx) => `${idx}. ${title}`).join("\n");
+
+    return this.callGroqWithFallback(async (model: string) => {
+      const { data, response } = await this.client.chat.completions
+        .create({
+          model,
+          max_tokens: 800,
+          temperature: 0.2, // Low temperature for consistent cleaning
+          messages: [
+            {
+              role: "user",
+              content: `Clean these page titles by removing redundant suffixes, site names, and separators.
+
+Titles:
+${titleList}
+
+Rules:
+1. Remove duplicate words/phrases (e.g., "About - FastHTML - FastHTML" → "About")
+2. Remove site name suffixes (e.g., "Documentation - MySite" → "Documentation")
+3. Keep the most meaningful part (usually the first segment)
+4. If only site name remains, keep it (e.g., "YouTube - YouTube" → "YouTube")
+5. Preserve special characters and capitalization
+
+Output as JSON only (no markdown, no explanation):
+{
+  "titles": ["Cleaned Title 1", "Cleaned Title 2", ...]
+}
+
+CRITICAL: Return ${titles.length} cleaned titles in the same order. Output ONLY valid JSON.`,
+            },
+          ],
+        })
+        .withResponse();
+
+      this.updateRateLimitState(response);
+
+      const content = data.choices[0]?.message?.content?.trim() || "{}";
+
+      try {
+        // Strip markdown code blocks if present
+        const jsonStr = content
+          .replace(/```json\n?/g, "")
+          .replace(/```\n?/g, "")
+          .trim();
+
+        const parsed = JSON.parse(jsonStr);
+        const cleanedTitles = parsed.titles || [];
+
+        // Validate: must return same number of titles
+        if (cleanedTitles.length !== titles.length) {
+          console.warn(
+            `Title cleaning returned ${cleanedTitles.length} titles, expected ${titles.length}. Using originals.`
+          );
+          return titles;
+        }
+
+        return cleanedTitles;
+      } catch (error) {
+        console.error("Failed to parse title cleaning JSON:", error);
+        console.error("Raw response:", content);
+        // Return original titles as fallback
+        return titles;
+      }
+    });
+  }
+
+  /**
    * Update rate limit state from Groq response headers
    * Per Groq docs: All headers (except retry-after) are ALWAYS present in responses
    * Uses .withResponse() to access raw HTTP Response object
