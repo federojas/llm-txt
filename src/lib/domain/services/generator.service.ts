@@ -4,6 +4,7 @@ import {
   LlmsTxtSection,
 } from "@/lib/domain/models";
 import { classifyUrl } from "../logic/url-classification";
+import { normalizeUrlForOutput } from "../logic/url-normalization";
 import { IDescriptionService } from "../interfaces";
 
 /**
@@ -152,22 +153,35 @@ export class GeneratorService {
       const pages = classified.get(key);
       if (!pages || pages.length === 0) continue;
 
+      // Deduplicate by normalized URL (strips all query params for output)
+      const seen = new Set<string>();
+      const deduplicatedPages = pages.filter((page) => {
+        const normalized = normalizeUrlForOutput(page.url);
+        if (seen.has(normalized)) {
+          return false;
+        }
+        seen.add(normalized);
+        return true;
+      });
+
       // Sort by depth (shallower = more important) and title
-      const sortedPages = pages
+      const sortedPages = deduplicatedPages
         .sort((a, b) => {
           if (a.depth !== b.depth) return a.depth - b.depth;
           return a.title.localeCompare(b.title);
         })
-        .slice(0, 10); // Reduced from 20 to 10 for more focused output
+        .slice(0, 10); // Limit to 10 for focused output
 
-      sections.push({
-        title,
-        links: sortedPages.map((page) => ({
-          title: page.title,
-          url: page.url,
-          description: aiDescriptions.get(page.url) || page.description,
-        })),
-      });
+      if (sortedPages.length > 0) {
+        sections.push({
+          title,
+          links: sortedPages.map((page) => ({
+            title: page.title,
+            url: normalizeUrlForOutput(page.url), // Use normalized URL in output
+            description: aiDescriptions.get(page.url) || page.description,
+          })),
+        });
+      }
     }
 
     return sections;

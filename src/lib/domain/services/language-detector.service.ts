@@ -6,9 +6,12 @@
  * 1. URL heuristics (/es/, ?lang=es) - explicit, never wrong
  * 2. HTTP Content-Language response header - server's declaration
  * 3. HTML metadata (<html lang="">) - document language
- * 4. Default to English (for prefer-english strategy)
+ * 4. Text-based detection (franc-min) - ML-based detection for edge cases
+ * 5. Default to English (for prefer-english strategy)
  */
 
+import { franc } from "franc-min";
+import iso6393To1 from "iso-639-3-to-1";
 import { ILanguageDetector } from "../interfaces/language-detector.interface";
 
 export class LanguageDetectorService implements ILanguageDetector {
@@ -16,10 +19,10 @@ export class LanguageDetectorService implements ILanguageDetector {
    * Detect language using multiple signals in priority order
    */
   async detectLanguage(
-    text: string,
-    htmlLangAttribute?: string,
     url?: string,
-    contentLanguageHeader?: string
+    htmlLangAttribute?: string,
+    contentLanguageHeader?: string,
+    text?: string
   ): Promise<string> {
     // Tier 1: URL heuristics (fastest, most reliable - explicit selection)
     if (url) {
@@ -49,9 +52,43 @@ export class LanguageDetectorService implements ILanguageDetector {
       }
     }
 
-    // Tier 4: Default to English
+    // Tier 4: Text-based detection (franc-min) for edge cases
+    // Only analyze substantial text to avoid false positives on short strings
+    if (text && text.length >= 50) {
+      const detectedLang = this.detectWithFranc(text);
+      if (detectedLang && detectedLang !== "und") {
+        return detectedLang;
+      }
+    }
+
+    // Tier 5: Default to English
     // (Appropriate for prefer-english strategy with Accept-Language header)
     return "en";
+  }
+
+  /**
+   * Detect language using franc-min library
+   * Uses ML-based detection for edge cases where metadata is missing/incorrect
+   *
+   * @param text - Text to analyze (minimum 50 chars recommended)
+   * @returns ISO 639-1 code (e.g., "es", "fr") or null
+   */
+  private detectWithFranc(text: string): string | null {
+    try {
+      // franc returns ISO 639-3 codes (3-letter: "spa", "fra", "deu")
+      const iso639_3 = franc(text, { minLength: 50 });
+
+      // "und" = undetermined (franc couldn't detect language)
+      if (iso639_3 === "und") {
+        return null;
+      }
+
+      // Convert ISO 639-3 to ISO 639-1 using standard library
+      const iso639_1 = iso6393To1(iso639_3);
+      return iso639_1 || null;
+    } catch {
+      return null;
+    }
   }
 
   /**

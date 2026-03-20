@@ -295,10 +295,10 @@ export class CrawlerService implements ICrawlerService {
 
       // Language filtering based on strategy
       const detectedLang = await this.languageDetector.detectLanguage(
-        `${metadata.title} ${metadata.description || ""}`,
-        metadata.lang,
         url,
-        contentLanguageHeader
+        metadata.lang,
+        contentLanguageHeader,
+        `${metadata.title} ${metadata.description || ""}` // Text for franc-min fallback
       );
 
       // Track English pages for graceful degradation

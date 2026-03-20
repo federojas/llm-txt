@@ -48,3 +48,40 @@ export function normalizeUrl(url: string): string {
     return url;
   }
 }
+
+/**
+ * Aggressive URL normalization for llms.txt output
+ *
+ * Business rules for final output:
+ * - Remove ALL query parameters (business rule: variants of same page = duplicate)
+ * - Remove trailing slashes
+ * - Remove hash fragments
+ *
+ * This is MORE aggressive than normalizeUrl() - use only for final deduplication
+ * in llms.txt generation, NOT for crawling.
+ *
+ * Example: Both https://example.com/page?lang=en and https://example.com/page?tab=main
+ * should be treated as the same page in llms.txt output.
+ *
+ * @param url - URL to normalize
+ * @returns Aggressively normalized URL string
+ */
+export function normalizeUrlForOutput(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+
+    // Remove trailing slash
+    parsedUrl.pathname = parsedUrl.pathname.replace(/\/+$/, "") || "/";
+
+    // Remove hash
+    parsedUrl.hash = "";
+
+    // Remove ALL query parameters for deduplication
+    // (Business rule: we already crawled the page, params don't matter for output)
+    parsedUrl.search = "";
+
+    return parsedUrl.toString();
+  } catch {
+    return url;
+  }
+}
