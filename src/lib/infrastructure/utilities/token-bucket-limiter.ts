@@ -1,15 +1,36 @@
 /**
  * Token Bucket Rate Limiter
- * Ensures requests stay within a specified rate limit
+ *
+ * PURPOSE: Client-side throttling to prevent exceeding API rate limits (RPM)
+ *
+ * USE CASE: AI provider adapters (Groq, OpenAI, Anthropic, etc.) that have
+ * requests-per-minute (RPM) limits. This prevents hitting 429 errors by
+ * throttling requests BEFORE they're sent.
+ *
+ * EXAMPLE:
+ * ```typescript
+ * // Groq free tier: 30 RPM
+ * private limiter = new TokenBucketLimiter(30);
+ *
+ * async generateDescription(page: PageMetadata) {
+ *   await this.limiter.waitForToken(); // Throttles to 30 RPM
+ *   return await this.client.chat.completions.create({...});
+ * }
+ * ```
+ *
+ * NOTE: This handles RPM throttling. For handling actual 429 errors (TPD/RPD limits),
+ * implement retry logic with exponential backoff in your adapter.
+ *
+ * @see GroqDescriptionGenerator for complete implementation example
  */
-export class RateLimiter {
+export class TokenBucketLimiter {
   private tokens: number;
   private lastRefill: number;
   private readonly capacity: number;
   private readonly refillRate: number; // tokens per millisecond
 
   /**
-   * @param requestsPerMinute - Maximum requests allowed per minute
+   * @param requestsPerMinute - Maximum requests allowed per minute (e.g., 30 for Groq free tier)
    * @param burstCapacity - Optional burst capacity (defaults to requestsPerMinute)
    */
   constructor(

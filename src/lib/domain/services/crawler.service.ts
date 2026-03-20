@@ -41,6 +41,10 @@ export class CrawlerService implements ICrawlerService {
         totalPages: this.config.maxPages,
       });
 
+      // ALWAYS crawl homepage first (critical for proper llms.txt generation)
+      const homepageUrl = normalizeUrl(this.config.url);
+      await this.fetchAndParse(homepageUrl, 0);
+
       // Try sitemap first
       const usedSitemap = await this.crawlFromSitemap();
 
@@ -180,13 +184,15 @@ export class CrawlerService implements ICrawlerService {
       const metadata = extractMetadata(html, url, this.config.url, depth);
 
       // Strongly prefer English content for LLM consumption
-      // Only accept non-English if: 1) no lang detected, or 2) very few results found
+      // Only filter non-English pages if we have substantial English content
       if (metadata.lang && metadata.lang !== "en") {
-        // Allow non-English only if we're desperate (< 3 pages found)
-        if (this.results.length >= 3) {
+        const englishPages = this.results.filter(
+          (p) => !p.lang || p.lang === "en"
+        );
+        // Only start filtering if we have at least 10 English pages AND 20 total pages
+        if (englishPages.length >= 10 && this.results.length >= 20) {
           return null;
         }
-        // Even then, only add if no better English alternative exists
         console.warn(`Including non-English page (${metadata.lang}): ${url}`);
       }
 

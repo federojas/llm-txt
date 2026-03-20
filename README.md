@@ -15,7 +15,7 @@ llms.txt is a proposed standard for providing structured information about websi
 - **Smart Classification**: Automatically categorizes pages (docs, API, guides, blog, etc.)
 - **Language Filtering**: Detects and prefers English content, skips language variants
 - **SSRF Protection**: Built-in security to prevent Server-Side Request Forgery attacks
-- **Configurable Depth**: Choose between Quick (25 pages) or Thorough (100 pages) crawling
+- **Configurable Depth**: Choose between Quick (50 pages) or Thorough (150 pages) crawling
 - **Real-time Preview**: Edit the generated llms.txt before downloading
 - **Copy & Download**: Easy export options for immediate use
 - **Responsive Design**: Works seamlessly on desktop and mobile devices
@@ -53,7 +53,7 @@ npm run dev
 ### Using the Tool
 
 1. **Enter a URL**: Input any public website URL (e.g., `https://nextjs.org`)
-2. **Choose preset**: Select "Quick" (25 pages) or "Thorough" (100 pages)
+2. **Choose preset**: Select "Quick" (50 pages) or "Thorough" (150 pages)
 3. **Generate**: Click "Generate llms.txt" and wait for crawling to complete
 4. **Review**: Preview the generated file and edit if needed
 5. **Download**: Click "Download" or "Copy" to get your llms.txt file

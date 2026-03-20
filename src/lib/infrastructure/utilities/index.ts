@@ -3,4 +3,4 @@
  * Shared infrastructure helpers (rate limiting, logging, etc.)
  */
 
-export { RateLimiter } from "./rate-limiter";
+export { TokenBucketLimiter } from "./token-bucket-limiter";

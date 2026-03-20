@@ -13,19 +13,20 @@ export interface PresetConfig {
 
 export const CRAWL_PRESETS: Record<CrawlPreset, PresetConfig> = {
   quick: {
-    maxPages: 25,
-    maxDepth: 2,
-    description: "Fast crawl with limited depth for quick results",
+    maxPages: 50, // Increased from 25 for better coverage
+    maxDepth: 3, // Increased from 2 to capture more sections
+    description: "Fast crawl with moderate depth for comprehensive results",
   },
   thorough: {
-    maxPages: 100,
-    maxDepth: 3,
-    description: "Comprehensive crawl for detailed documentation",
+    maxPages: 150, // Increased from 100 for richer documentation
+    maxDepth: 4, // Increased from 3 for deeper exploration
+    description:
+      "Comprehensive crawl for detailed, production-ready documentation",
   },
   custom: {
-    maxPages: 50,
+    maxPages: 75, // Increased from 50
     maxDepth: 3,
-    description: "Custom configuration with default values",
+    description: "Custom configuration with balanced defaults",
   },
 };
 

@@ -9,29 +9,29 @@ import {
 describe("Preset Configuration", () => {
   describe("getPresetMaxPages", () => {
     it("should return correct maxPages for quick preset", () => {
-      expect(getPresetMaxPages("quick")).toBe(25);
+      expect(getPresetMaxPages("quick")).toBe(50);
     });
 
     it("should return correct maxPages for thorough preset", () => {
-      expect(getPresetMaxPages("thorough")).toBe(100);
+      expect(getPresetMaxPages("thorough")).toBe(150);
     });
 
     it("should return default maxPages for custom preset", () => {
-      expect(getPresetMaxPages("custom")).toBe(50);
+      expect(getPresetMaxPages("custom")).toBe(75);
     });
 
     it("should return default maxPages for undefined preset", () => {
-      expect(getPresetMaxPages()).toBe(50);
+      expect(getPresetMaxPages()).toBe(75);
     });
   });
 
   describe("getPresetMaxDepth", () => {
     it("should return correct maxDepth for quick preset", () => {
-      expect(getPresetMaxDepth("quick")).toBe(2);
+      expect(getPresetMaxDepth("quick")).toBe(3);
     });
 
     it("should return correct maxDepth for thorough preset", () => {
-      expect(getPresetMaxDepth("thorough")).toBe(3);
+      expect(getPresetMaxDepth("thorough")).toBe(4);
     });
 
     it("should return default maxDepth for custom preset", () => {
@@ -46,21 +46,21 @@ describe("Preset Configuration", () => {
   describe("getPresetConfig", () => {
     it("should return full config for quick preset", () => {
       const config = getPresetConfig("quick");
-      expect(config.maxPages).toBe(25);
-      expect(config.maxDepth).toBe(2);
+      expect(config.maxPages).toBe(50);
+      expect(config.maxDepth).toBe(3);
       expect(config.description).toBeTruthy();
     });
 
     it("should return full config for thorough preset", () => {
       const config = getPresetConfig("thorough");
-      expect(config.maxPages).toBe(100);
-      expect(config.maxDepth).toBe(3);
+      expect(config.maxPages).toBe(150);
+      expect(config.maxDepth).toBe(4);
       expect(config.description).toBeTruthy();
     });
 
     it("should return full config for custom preset", () => {
       const config = getPresetConfig("custom");
-      expect(config.maxPages).toBe(50);
+      expect(config.maxPages).toBe(75);
       expect(config.maxDepth).toBe(3);
       expect(config.description).toBeTruthy();
     });

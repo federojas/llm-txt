@@ -61,11 +61,35 @@ export class HeuristicDescriptionGenerator implements IDescriptionGenerator {
   }
 
   async generateBusinessSummary(homepage: PageMetadata): Promise<string> {
-    return (
-      homepage.ogDescription ||
-      homepage.description ||
-      "A platform providing digital services and resources."
-    );
+    // Prefer og:description as it's usually the best summary
+    if (homepage.ogDescription) {
+      return this.cleanDescription(homepage.ogDescription);
+    }
+
+    if (homepage.description) {
+      return this.cleanDescription(homepage.description);
+    }
+
+    // Build a basic summary from available metadata
+    const siteName =
+      homepage.siteName || homepage.ogTitle || homepage.title || "This site";
+    const domain = new URL(homepage.url).hostname.replace(/^www\./, "");
+
+    // Try to infer site type from domain or title
+    if (domain.includes("github") || homepage.url.includes("github.com")) {
+      return `${siteName} - Software development platform and code hosting service.`;
+    }
+
+    if (domain.includes("youtube")) {
+      return `${siteName} - Video sharing and streaming platform.`;
+    }
+
+    if (domain.includes("google")) {
+      return `${siteName} - Search engine and technology platform providing web services, cloud computing, and digital tools.`;
+    }
+
+    // Generic but informative fallback
+    return `${siteName} - Visit ${domain} to learn more about their services and offerings.`;
   }
 
   /**

@@ -94,8 +94,8 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                 className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isLoading}
               >
-                <option value="quick">Quick (25 pages, depth 2)</option>
-                <option value="thorough">Thorough (100 pages, depth 3)</option>
+                <option value="quick">Quick (50 pages, depth 3)</option>
+                <option value="thorough">Thorough (150 pages, depth 4)</option>
               </select>
               <p className="mt-1 text-xs text-gray-500">
                 Choose how many pages to crawl and how deep to go

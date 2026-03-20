@@ -92,13 +92,16 @@ async function buildLlmsTxtStructure(
 }
 
 /**
- * Classify pages by type
+ * Classify pages by type using hybrid classification
+ * Passes metadata to enable content-based classification
  */
 function classifyPages(pages: PageMetadata[]): Map<string, PageMetadata[]> {
   const classified = new Map<string, PageMetadata[]>();
 
   for (const page of pages) {
-    const type = classifyUrl(page.url);
+    // Use hybrid classification: metadata + URL patterns
+    // TODO: Pass sitemap data when available for even better classification
+    const type = classifyUrl(page.url, page);
     if (!classified.has(type)) {
       classified.set(type, []);
     }
