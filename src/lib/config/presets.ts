@@ -3,7 +3,7 @@
  * Provides predefined configurations for different use cases
  */
 
-import { CrawlPreset } from "@/types";
+import { CrawlPreset } from "@/lib/domain/models";
 
 export interface PresetConfig {
   maxPages: number;

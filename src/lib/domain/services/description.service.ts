@@ -1,5 +1,5 @@
 import { IDescriptionGenerator, IDescriptionService } from "../interfaces";
-import { PageMetadata } from "@/types";
+import { PageMetadata } from "@/lib/domain/models";
 
 /**
  * Description Service (Domain Layer)

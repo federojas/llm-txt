@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CrawlPreset } from "@/types";
+import { CrawlPreset } from "@/lib/domain/models";
 
 interface UrlInputProps {
   onGenerate: (url: string, preset: CrawlPreset) => void;

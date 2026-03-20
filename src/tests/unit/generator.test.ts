@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateLlmsTxt, validateLlmsTxt } from "@/lib/domain/generator";
-import { PageMetadata } from "@/types";
+import { PageMetadata } from "@/lib/domain/models";
 
 describe("LLMs.txt Generator", () => {
   const mockPages: PageMetadata[] = [

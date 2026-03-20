@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { PageMetadata } from "@/types";
+import { PageMetadata } from "@/lib/domain/models";
 import { toAbsoluteUrl, normalizeUrl } from "../../shared/url-utils";
 import { isInternalUrl, getUrlDepth } from "../logic/url-classification";
 

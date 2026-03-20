@@ -4,7 +4,7 @@
  * Can be used by API, CLI, workers, or any other consumer
  */
 
-import { CrawlPreset } from "@/types";
+import { CrawlPreset } from "@/lib/domain/models";
 
 /**
  * Crawl configuration limits (business rules)

@@ -7,7 +7,7 @@ import { CrawlerService } from "@/lib/domain/services/crawler.service";
 import { generateLlmsTxt } from "@/lib/domain/generator";
 import { getPresetMaxPages, getPresetMaxDepth } from "@/lib/config";
 import { NotFoundError, InternalServerError } from "@/lib/api/errors";
-import { CrawlConfig, PageMetadata } from "@/types";
+import { CrawlConfig, PageMetadata } from "@/lib/domain/models";
 import { GenerateRequest, GenerateResponseData } from "@/lib/api/dtos";
 
 export class GenerateLlmsTxt {

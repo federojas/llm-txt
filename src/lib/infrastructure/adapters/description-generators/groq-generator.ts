@@ -1,6 +1,6 @@
 import Groq from "groq-sdk";
 import { IDescriptionGenerator } from "@/lib/domain/interfaces/description-generator.interface";
-import { PageMetadata } from "@/types";
+import { PageMetadata } from "@/lib/domain/models";
 import { TokenBucketLimiter } from "../../utilities/token-bucket-limiter";
 
 interface ModelConfig {

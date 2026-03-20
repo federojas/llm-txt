@@ -1,5 +1,5 @@
 import { IDescriptionGenerator } from "@/lib/domain/interfaces/description-generator.interface";
-import { PageMetadata } from "@/types";
+import { PageMetadata } from "@/lib/domain/models";
 
 /**
  * Heuristic description generator

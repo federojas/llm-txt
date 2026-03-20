@@ -1,4 +1,4 @@
-import { CrawlConfig, PageMetadata, CrawlProgress } from "@/types";
+import { CrawlConfig, PageMetadata, CrawlProgress } from "@/lib/domain/models";
 import { extractMetadata, isIndexable } from "../parser/html";
 import { getUrlDepth, isLanguageVariant } from "../logic/url-classification";
 import { normalizeUrl } from "../../shared/url-utils";

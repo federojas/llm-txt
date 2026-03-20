@@ -11,7 +11,7 @@
  * 3. URL pattern matching (fallback heuristic)
  */
 
-import type { PageMetadata } from "@/types";
+import type { PageMetadata } from "@/lib/domain/models";
 import type { SitemapUrl } from "../parser/sitemap";
 
 /**

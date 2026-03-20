@@ -1,4 +1,4 @@
-import { PageMetadata } from "@/types";
+import { PageMetadata } from "@/lib/domain/models";
 
 /**
  * Interface for description service
