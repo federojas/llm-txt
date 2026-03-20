@@ -5,6 +5,7 @@ import axios, {
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from "axios";
+import { USER_AGENT } from "@/lib/config/constants";
 
 /**
  * Default timeout for HTTP requests (milliseconds)
@@ -317,7 +318,7 @@ class HttpClient {
 
     this.config = {
       timeout,
-      userAgent: config.userAgent ?? "LLMsTxtGenerator/1.0",
+      userAgent: config.userAgent ?? USER_AGENT,
       enableLogging: config.enableLogging ?? true,
       enableMetrics: config.enableMetrics ?? false,
       maxRetries,

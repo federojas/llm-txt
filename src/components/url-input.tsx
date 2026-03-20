@@ -90,15 +90,17 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
             className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isLoading}
           >
-            <option value="prefer-english">Prefer English (recommended)</option>
+            <option value="prefer-english">
+              Prefer English (with automatic fallback)
+            </option>
             <option value="page-language">
               Use server&apos;s natural language
             </option>
           </select>
           <p className="mt-1 text-xs text-gray-500">
             {languageStrategy === "prefer-english"
-              ? "Requests English content, falls back to site's primary language if unavailable"
-              : "⚠️ May result in mixed languages for geo-aware sites like YouTube"}
+              ? "Requests English content first. Automatically falls back to the site's primary language if English is unavailable (e.g., German-only sites → German output). Always single-language."
+              : "⚠️ Accepts whatever language the server provides. May result in mixed languages for geo-aware sites like YouTube."}
           </p>
         </div>
 

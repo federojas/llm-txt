@@ -10,6 +10,10 @@ import {
   discoverSitemap,
   fetchAndParseSitemap,
 } from "../../infrastructure/clients/sitemap-client";
+import {
+  fetchRobotsTxt,
+  RobotsDirectives,
+} from "../../infrastructure/clients/robots-client";
 import { ICrawlerService } from "../interfaces/crawler-service.interface";
 import { ILanguageDetector } from "../interfaces/language-detector.interface";
 import { LanguageDetectorService } from "./language-detector.service";
@@ -28,6 +32,9 @@ export class CrawlerService implements ICrawlerService {
   private languageDetector: ILanguageDetector;
   private englishPagesFound = 0; // Track English pages for graceful degradation
   private relaxedLanguageMode = false; // Enable fallback to other languages
+  private robotsDirectives?: RobotsDirectives; // Robots.txt directives
+  private crawlDelay?: number; // Delay between requests (milliseconds)
+  private lastRequestTime = 0; // Track last request for crawl delay
 
   constructor(
     config: CrawlConfig,
@@ -52,6 +59,21 @@ export class CrawlerService implements ICrawlerService {
         pagesProcessed: 0,
         totalPages: this.config.maxPages,
       });
+
+      // Fetch robots.txt directives at the start
+      try {
+        this.robotsDirectives = await fetchRobotsTxt(this.config.url);
+        const crawlDelaySeconds = this.robotsDirectives.getCrawlDelay();
+        if (crawlDelaySeconds) {
+          this.crawlDelay = crawlDelaySeconds * 1000; // Convert to milliseconds
+          console.log(
+            `[robots.txt] Respecting crawl-delay: ${crawlDelaySeconds}s`
+          );
+        }
+      } catch (error) {
+        console.warn(`[robots.txt] Failed to fetch robots.txt:`, error);
+        // Continue crawling even if robots.txt fails
+      }
 
       // ALWAYS crawl homepage first (critical for proper llms.txt generation)
       const homepageUrl = normalizeUrl(this.config.url);
@@ -173,6 +195,25 @@ export class CrawlerService implements ICrawlerService {
     if (this.visited.has(normalized)) return null;
     this.visited.add(normalized);
 
+    // Check robots.txt (skip homepage to ensure we always get at least one page)
+    const isHomepage = normalizeUrl(url) === normalizeUrl(this.config.url);
+    if (!isHomepage && this.robotsDirectives) {
+      if (!this.robotsDirectives.isAllowed(url)) {
+        console.log(`[robots.txt] Skipping disallowed URL: ${url}`);
+        return null;
+      }
+    }
+
+    // Respect crawl-delay from robots.txt
+    if (this.crawlDelay && this.lastRequestTime > 0) {
+      const timeSinceLastRequest = Date.now() - this.lastRequestTime;
+      if (timeSinceLastRequest < this.crawlDelay) {
+        const waitTime = this.crawlDelay - timeSinceLastRequest;
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      }
+    }
+    this.lastRequestTime = Date.now();
+
     try {
       this.updateProgress({
         status: "crawling",
@@ -193,6 +234,35 @@ export class CrawlerService implements ICrawlerService {
         responseType: "text",
         headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
+
+      // Enhanced error handling for bot protection and rate limiting
+      if (response.status === 403) {
+        console.warn(
+          `[HTTP 403] Site blocked access to ${url}. This may be due to:\n` +
+            `  • Bot protection (Cloudflare, reCAPTCHA)\n` +
+            `  • Geographic restrictions\n` +
+            `  • Rate limiting\n` +
+            `Suggestions:\n` +
+            `  1. Check if site has sitemap.xml (automatically used)\n` +
+            `  2. Contact site owner for API access\n` +
+            `  3. Manual submission of llms.txt`
+        );
+        return null;
+      }
+
+      if (response.status === 429) {
+        console.warn(
+          `[HTTP 429] Rate limited by ${url}. The crawler is already respecting:\n` +
+            `  • 5 requests/second max rate\n` +
+            `  • robots.txt crawl-delay${this.crawlDelay ? ` (${this.crawlDelay / 1000}s)` : ""}\n` +
+            `  • Exponential backoff retries\n` +
+            `The site may require slower crawling. Consider:\n` +
+            `  1. Using sitemap.xml instead (automatically attempted)\n` +
+            `  2. Reducing maxPages in your request\n` +
+            `  3. Trying again later`
+        );
+        return null;
+      }
 
       if (response.status < 200 || response.status >= 300) return null;
 
@@ -223,10 +293,8 @@ export class CrawlerService implements ICrawlerService {
         this.englishPagesFound++;
       }
 
-      // ALWAYS accept homepage (critical for llms.txt generation)
-      const isHomepage = normalizeUrl(url) === normalizeUrl(this.config.url);
-
       // Apply language filtering based on strategy (except for homepage)
+      // Homepage was already checked at the top of this method
       if (!isHomepage) {
         const shouldSkip = this.shouldSkipPage(detectedLang, url);
         if (shouldSkip) {
