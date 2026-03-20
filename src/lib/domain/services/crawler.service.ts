@@ -8,6 +8,7 @@ import {
   discoverSitemap,
   fetchAndParseSitemap,
 } from "../../infrastructure/clients/sitemap-client";
+import type { SitemapUrl } from "../../infrastructure/parsers/sitemap-parser";
 import {
   fetchRobotsTxt,
   RobotsDirectives,
@@ -34,6 +35,7 @@ export class CrawlerService implements ICrawlerService {
   private robotsDirectives?: RobotsDirectives; // Robots.txt directives
   private crawlDelay?: number; // Delay between requests (milliseconds)
   private lastRequestTime = 0; // Track last request for crawl delay
+  private sitemapData = new Map<string, SitemapUrl>(); // URL -> sitemap metadata
 
   constructor(
     config: CrawlConfig,
@@ -132,6 +134,11 @@ export class CrawlerService implements ICrawlerService {
       this.config.maxPages
     );
     if (sitemapUrls.length === 0) return false;
+
+    // Store sitemap data for classification
+    for (const sitemapUrl of sitemapUrls) {
+      this.sitemapData.set(normalizeUrl(sitemapUrl.url), sitemapUrl);
+    }
 
     // Process URLs from sitemap in batches
     const batches = this.chunkArray(sitemapUrls, this.config.concurrency);
@@ -306,6 +313,12 @@ export class CrawlerService implements ICrawlerService {
         if (shouldSkip) {
           return null;
         }
+      }
+
+      // Add sitemap priority if available (for better classification)
+      const sitemapInfo = this.sitemapData.get(normalized);
+      if (sitemapInfo?.priority !== undefined) {
+        metadata.sitemapPriority = sitemapInfo.priority;
       }
 
       this.results.push(metadata);

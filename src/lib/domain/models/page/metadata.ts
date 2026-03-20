@@ -15,5 +15,5 @@ export interface PageMetadata {
   lang?: string; // For filtering non-English pages
   depth: number;
   internalLinks: string[];
-  // Future: Add sitemapPriority?: number for even better classification
+  sitemapPriority?: number; // From sitemap.xml (0.0-1.0) for better classification
 }
