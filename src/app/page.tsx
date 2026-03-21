@@ -16,16 +16,24 @@ export default function Home() {
     stats: { pagesFound: number; url: string };
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollAttemptsRef = useRef<number>(0);
 
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
       }
     };
   }, []);
+
+  // Calculate polling interval with exponential backoff
+  const getPollingInterval = (attempts: number): number => {
+    if (attempts <= 5) return 2000; // First 10s: poll every 2s
+    if (attempts <= 15) return 5000; // Next 50s: poll every 5s
+    return 10000; // After 60s: poll every 10s
+  };
 
   const pollJobStatus = async (statusUrl: string) => {
     try {
@@ -45,10 +53,11 @@ export default function Home() {
 
       if (status === "completed") {
         // Job completed successfully
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
+        if (pollingTimeoutRef.current) {
+          clearTimeout(pollingTimeoutRef.current);
+          pollingTimeoutRef.current = null;
         }
+        pollAttemptsRef.current = 0;
         setIsLoading(false);
         setResult({
           content: data.data.result.content,
@@ -56,19 +65,27 @@ export default function Home() {
         });
       } else if (status === "failed") {
         // Job failed
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
+        if (pollingTimeoutRef.current) {
+          clearTimeout(pollingTimeoutRef.current);
+          pollingTimeoutRef.current = null;
         }
+        pollAttemptsRef.current = 0;
         setIsLoading(false);
         setError(data.data.error || "Job failed");
+      } else {
+        // Status is "pending" or "processing" - schedule next poll with backoff
+        pollAttemptsRef.current += 1;
+        const interval = getPollingInterval(pollAttemptsRef.current);
+        pollingTimeoutRef.current = setTimeout(() => {
+          pollJobStatus(statusUrl);
+        }, interval);
       }
-      // If status is "pending" or "processing", continue polling
     } catch (err) {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
       }
+      pollAttemptsRef.current = 0;
       setIsLoading(false);
       setError(
         err instanceof Error ? err.message : "Failed to poll job status"
@@ -85,6 +102,7 @@ export default function Home() {
     setError(null);
     setResult(null);
     setJobStatus(null);
+    pollAttemptsRef.current = 0;
 
     try {
       // Step 1: Create job
@@ -104,17 +122,12 @@ export default function Home() {
         );
       }
 
-      // Step 2: Start polling for job status
+      // Step 2: Start polling with exponential backoff
       const statusUrl = data.data.statusUrl;
       setJobStatus(data.data.status);
 
-      // Poll immediately
+      // Start polling (first poll happens immediately inside pollJobStatus)
       await pollJobStatus(statusUrl);
-
-      // Then poll every 2 seconds
-      pollingIntervalRef.current = setInterval(() => {
-        pollJobStatus(statusUrl);
-      }, 2000);
     } catch (err) {
       setIsLoading(false);
       setError(err instanceof Error ? err.message : "An error occurred");
