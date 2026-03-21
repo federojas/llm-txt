@@ -9,6 +9,7 @@ import type { SitemapUrl } from "@/lib/http/sitemap";
 import { fetchRobotsTxt, RobotsDirectives } from "@/lib/http/robots";
 import { ILanguageDetector } from "./language-detector";
 import { LanguageDetector } from "./language-detector";
+import { createHash } from "crypto";
 
 /**
  * Crawler Service (Application Layer)
@@ -21,6 +22,7 @@ import { LanguageDetector } from "./language-detector";
 export class Crawler {
   private config: CrawlConfig;
   private visited = new Set<string>();
+  private contentHashes = new Set<string>(); // Track content hashes for duplicate detection
   private queue: Array<{ url: string; depth: number }> = [];
   private results: PageMetadata[] = [];
   private progressCallback?: (progress: CrawlProgress) => void;
@@ -139,6 +141,10 @@ export class Crawler {
       this.config.maxPages
     );
     if (sitemapUrls.length === 0) return false;
+
+    // Sort by priority (highest first) to crawl important pages before hitting limit
+    // Priority is 0.0-1.0, with 1.0 being highest priority
+    sitemapUrls.sort((a, b) => (b.priority || 0.5) - (a.priority || 0.5));
 
     // Store sitemap data for classification
     for (const sitemapUrl of sitemapUrls) {
@@ -294,6 +300,23 @@ export class Crawler {
         this.config.url,
         depth
       );
+
+      // Duplicate content detection: hash page content (title + description + body text)
+      // This catches different URLs serving identical content (e.g., /page vs /page?ref=twitter)
+      const contentSignature = `${metadata.title}|${metadata.description || ""}|${metadata.bodyText || ""}`;
+      const contentHash = createHash("sha256")
+        .update(contentSignature)
+        .digest("hex")
+        .substring(0, 16); // Use first 16 chars for efficiency
+
+      // Skip if we've seen this exact content before
+      if (this.contentHashes.has(contentHash)) {
+        console.log(
+          `[Duplicate Content] Skipping ${url} - content matches existing page`
+        );
+        return null;
+      }
+      this.contentHashes.add(contentHash);
 
       // Extract Content-Language header from HTTP response
       const contentLanguageHeader = response.headers["content-language"];

@@ -62,7 +62,14 @@ const INTERNAL_HEADERS = {
   RETRY_WITH_HTTP: "X-Retry-With-HTTP",
   REQUEST_START_TIME: "X-Request-Start-Time",
   RETRY_COUNT: "X-Retry-Count",
+  REDIRECT_COUNT: "X-Redirect-Count",
+  REDIRECT_CHAIN: "X-Redirect-Chain",
 } as const;
+
+/**
+ * Maximum redirects before considering it a redirect loop
+ */
+const MAX_REDIRECTS = 10;
 
 /**
  * Logger interface for dependency injection
@@ -372,9 +379,11 @@ class HttpClient {
 
     this.instance = axios.create({
       timeout: this.config.timeout,
+      maxRedirects: MAX_REDIRECTS, // Limit redirects to prevent infinite loops
       validateStatus: () => true, // Handle all status codes manually
       headers: {
         "User-Agent": this.config.userAgent,
+        "Accept-Encoding": "gzip, deflate, br", // Enable compression (60-80% bandwidth reduction)
       },
     });
 
@@ -548,9 +557,9 @@ class HttpClient {
           return this.instance.request(retryConfig);
         }
 
-        // Attempt retry with exponential backoff
+        // Attempt retry with exponential backoff (pass error for Retry-After parsing)
         if (config && this.shouldRetry(error, config)) {
-          return this.retryRequest(config);
+          return this.retryRequest(config, error);
         }
 
         return Promise.reject(error);
@@ -591,25 +600,81 @@ class HttpClient {
   }
 
   /**
+   * Parse Retry-After header value (RFC 7231)
+   * Supports both delay-seconds (integer) and HTTP-date formats
+   * @returns delay in milliseconds, or null if invalid
+   */
+  private parseRetryAfter(retryAfter: string | undefined): number | null {
+    if (!retryAfter) return null;
+
+    // Try parsing as delay-seconds (integer)
+    const delaySeconds = parseInt(retryAfter, 10);
+    if (!isNaN(delaySeconds) && delaySeconds > 0) {
+      return delaySeconds * 1000; // Convert to milliseconds
+    }
+
+    // Try parsing as HTTP-date
+    try {
+      const retryDate = new Date(retryAfter);
+      if (!isNaN(retryDate.getTime())) {
+        const delay = retryDate.getTime() - Date.now();
+        return delay > 0 ? delay : null;
+      }
+    } catch {
+      // Invalid date format
+    }
+
+    return null;
+  }
+
+  /**
+   * Get retry delay, respecting Retry-After header if present
+   * @param error - Axios error object
+   * @param retryCount - Current retry attempt number
+   * @returns delay in milliseconds
+   */
+  private getRetryDelay(error: AxiosError, retryCount: number): number {
+    // Check for Retry-After header (429 Rate Limit, 503 Service Unavailable)
+    const retryAfterHeader = error.response?.headers["retry-after"];
+    const retryAfterDelay = this.parseRetryAfter(retryAfterHeader);
+
+    if (retryAfterDelay !== null) {
+      // Respect server's Retry-After directive
+      // Cap at 60 seconds to prevent excessive waiting
+      return Math.min(retryAfterDelay, 60000);
+    }
+
+    // Default exponential backoff: delay = baseDelay * 2^retryCount + jitter
+    const exponentialDelay = this.config.retryDelay * Math.pow(2, retryCount);
+    const jitter = Math.random() * 1000; // Add up to 1s jitter
+    return exponentialDelay + jitter;
+  }
+
+  /**
    * Retry request with exponential backoff and jitter
+   * Respects Retry-After header for 429/503 responses
    */
   private async retryRequest(
-    config: InternalAxiosRequestConfig
+    config: InternalAxiosRequestConfig,
+    error?: AxiosError
   ): Promise<AxiosResponse> {
     const retryCountStr = this.getHeader(config, INTERNAL_HEADERS.RETRY_COUNT);
     const retryCount = parseInt(retryCountStr || "0", 10);
     const nextRetryCount = retryCount + 1;
 
-    // Exponential backoff: delay = baseDelay * 2^retryCount + jitter
-    const exponentialDelay = this.config.retryDelay * Math.pow(2, retryCount);
-    const jitter = Math.random() * 1000; // Add up to 1s jitter
-    const delay = exponentialDelay + jitter;
+    // Calculate delay (respects Retry-After if present)
+    const delay = error
+      ? this.getRetryDelay(error, retryCount)
+      : this.config.retryDelay * Math.pow(2, retryCount) + Math.random() * 1000;
 
     const requestId = this.getHeader(config, INTERNAL_HEADERS.REQUEST_ID);
+    const retryAfterUsed = error?.response?.headers["retry-after"]
+      ? " (Retry-After)"
+      : "";
 
     if (this.config.enableLogging) {
       this.logger.warn(
-        `[HTTP] ⟳ Retry ${nextRetryCount}/${this.config.maxRetries} after ${Math.round(delay)}ms: ${config.url} [${requestId}]`
+        `[HTTP] ⟳ Retry ${nextRetryCount}/${this.config.maxRetries} after ${Math.round(delay)}ms${retryAfterUsed}: ${config.url} [${requestId}]`
       );
     }
 

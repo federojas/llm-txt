@@ -31,6 +31,27 @@ import { isValuableExternalLink } from "./external-links";
 export class HtmlParser implements IHtmlParser {
   constructor(private adBlocker: IAdBlocker) {}
   /**
+   * Extract canonical URL from HTML
+   * Returns null if no canonical URL is found or if it's invalid
+   */
+  extractCanonicalUrl(html: string, currentUrl: string): string | null {
+    try {
+      const $ = cheerio.load(html);
+      const canonical = $('link[rel="canonical"]').attr("href");
+
+      if (!canonical) return null;
+
+      // Convert to absolute URL if relative
+      const absoluteCanonical = toAbsoluteUrl(canonical, currentUrl);
+
+      // Normalize and return
+      return normalizeUrl(absoluteCanonical);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Extract structured metadata from HTML using Cheerio
    * Note: Async to support external link filtering with ad blocker engine
    */
@@ -42,8 +63,12 @@ export class HtmlParser implements IHtmlParser {
   ): Promise<PageMetadata> {
     const $ = cheerio.load(html);
 
+    // Use canonical URL if present, otherwise use the requested URL
+    const canonicalUrl = this.extractCanonicalUrl(html, url);
+    const finalUrl = canonicalUrl || url;
+
     return {
-      url: normalizeUrl(url),
+      url: normalizeUrl(finalUrl),
       title: this.extractTitle($),
       description: this.extractDescription($),
       ogDescription: this.extractOgDescription($),
