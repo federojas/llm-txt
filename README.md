@@ -101,6 +101,20 @@ docker-compose down
 - `INNGEST_EVENT_KEY` - Get from https://www.inngest.com/ dashboard
 - `INNGEST_SIGNING_KEY` - Get from https://www.inngest.com/ dashboard
 - `DATABASE_URL` - Auto-set by Neon integration
+- `UPSTASH_REDIS_REST_URL` - Upstash Redis URL (see setup below)
+- `UPSTASH_REDIS_REST_TOKEN` - Upstash Redis token (see setup below)
+
+**Upstash Redis Setup (Rate Limiting):**
+
+Rate limiting is required for production to prevent API abuse:
+
+1. Sign up at https://console.upstash.com/ (free tier: 10K requests/day)
+2. Create Redis database (choose region closest to Vercel deployment)
+3. Copy REST URL and Token to Vercel environment variables
+4. Default limits: 5 jobs/min per IP, 30 polls/min per IP
+5. Tune limits based on your LLM API tier and infrastructure capacity
+
+Without Redis, rate limiting is disabled (development only).
 
 ## 🤖 AI-Powered Descriptions
 

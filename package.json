@@ -25,6 +25,8 @@
     "@ghostery/adblocker": "^2.14.1",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "axios": "^1.13.6",
     "cheerio": "^1.2.0",
     "franc-min": "^6.2.0",
