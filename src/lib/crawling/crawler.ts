@@ -1,7 +1,6 @@
 import { CrawlConfig, PageMetadata, CrawlProgress } from "@/lib/types";
-import { IHtmlParser } from "./parser";
-import { IAdBlocker } from "./parser";
-import { HtmlParser } from "./parser";
+import { IHtmlParser, HtmlParser } from "./parser";
+import { IAdBlocker } from "./ad-blocker";
 import { getUrlDepth, isLanguageVariant } from "./boundaries";
 import { normalizeUrl } from "@/lib/url/normalization";
 import { httpClient } from "@/lib/http/client";

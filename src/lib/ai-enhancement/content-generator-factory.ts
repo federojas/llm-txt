@@ -1,3 +1,4 @@
+import { IChainable } from "./chained-service";
 import {
   IDescriptionGenerator,
   ISectionDiscoveryService,
@@ -46,7 +47,7 @@ export class ContentGeneratorFactory {
    * Chain order: Configured LLMs → Heuristics
    */
   createDescriptionGenerator(): IDescriptionGenerator {
-    return this.createChainedService(
+    return this.createChainedService<IDescriptionGenerator>(
       (provider, apiKey, rateLimit) => {
         switch (provider) {
           case "groq":
@@ -68,7 +69,7 @@ export class ContentGeneratorFactory {
    * Chain order: Configured LLMs → Heuristics
    */
   createSectionDiscovery(): ISectionDiscoveryService {
-    return this.createChainedService(
+    return this.createChainedService<ISectionDiscoveryService>(
       (provider, apiKey, rateLimit) => {
         switch (provider) {
           case "groq":
@@ -90,7 +91,7 @@ export class ContentGeneratorFactory {
    * Chain order: Configured LLMs → Heuristics
    */
   createTitleCleaning(): ITitleCleaningService {
-    return this.createChainedService(
+    return this.createChainedService<ITitleCleaningService>(
       (provider, apiKey, rateLimit) => {
         switch (provider) {
           case "groq":
@@ -111,7 +112,7 @@ export class ContentGeneratorFactory {
    * Generic method to create chained services
    * Reduces duplication across all service types
    */
-  private createChainedService<T>(
+  private createChainedService<T extends IChainable>(
     providerFactory: (
       provider: string,
       apiKey: string,
