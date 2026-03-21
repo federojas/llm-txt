@@ -10,6 +10,8 @@ llms.txt is a proposed standard for providing structured information about websi
 
 ## ✨ Features
 
+- **Async Job Processing**: Non-blocking API with PostgreSQL persistence and background workers
+- **Real-time Status Updates**: Poll-based status tracking with job progress visibility
 - **AI-Powered Content Generation**: Uses Groq (Llama 3.3 70B) to generate descriptions, discover sections, and clean titles
 - **Automated Crawling**: Intelligently crawls websites using sitemap.xml or BFS traversal
 - **Smart Section Discovery**: AI-powered categorization of pages into logical sections
@@ -26,6 +28,7 @@ llms.txt is a proposed standard for providing structured information about websi
 
 - Node.js 18+
 - npm, yarn, or pnpm
+- PostgreSQL 14+ (local or cloud instance)
 
 ### Local Setup
 
@@ -34,20 +37,24 @@ llms.txt is a proposed standard for providing structured information about websi
 git clone https://github.com/federojas/llms-txt.git
 cd llm-txt
 
-# Install dependencies
-npm install
-
-# Get your Groq API key (required for AI descriptions)
-# 1. Sign up at https://console.groq.com (free, no credit card required)
-# 2. Get your API key from https://console.groq.com/keys
-# 3. Configure environment variables:
+# Configure environment variables
 cp .env.example .env
-# Edit .env and add: GROQ_API_KEY=your_key_here
+# Edit .env and set: GROQ_API_KEY=your_groq_key_here
+# Get free API key from: https://console.groq.com/keys
 
-# Run development server
-npm run dev
+# Start everything with Docker Compose
+docker-compose up -d
 
-# Open http://localhost:3000 (or visit https://llm-txt-nine.vercel.app/)
+# Access the application:
+# - Next.js App:     http://localhost:3000
+# - Inngest UI:      http://localhost:8288
+# - PostgreSQL:      localhost:5432
+
+# View logs:
+docker-compose logs -f
+
+# Stop everything:
+docker-compose down
 ```
 
 ### Using the Tool
@@ -64,20 +71,60 @@ npm run dev
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/federojas/llms-txt)
 
-Or manually:
+**Manual Deployment Steps:**
+
+#### 1. Set Up PostgreSQL Database
+
+1. Go to your [Vercel Dashboard](https://vercel.com/dashboard)
+2. Navigate to **Storage** tab
+3. Click **Create Database** → Select **Postgres**
+4. Name your database (e.g., `llms-txt-db`)
+5. Click **Create**
+6. Vercel automatically sets `DATABASE_URL` environment variable
+
+#### 2. Set Up Inngest
+
+1. Sign up at [inngest.com](https://www.inngest.com/) (free tier available)
+2. Create a new app in Inngest dashboard
+3. Get your API keys from **Settings**:
+   - **Event Key** (starts with `evt_...`)
+   - **Signing Key** (starts with `signkey_...`)
+
+#### 3. Configure Environment Variables
+
+In Vercel project settings → **Environment Variables**, add:
+
+```bash
+GROQ_API_KEY=your_groq_api_key_here
+INNGEST_EVENT_KEY=evt_your_event_key_here
+INNGEST_SIGNING_KEY=signkey_your_signing_key_here
+# DATABASE_URL is auto-set by Vercel Postgres
+```
+
+#### 4. Deploy Your App
 
 1. Push your code to GitHub
-2. Go to [vercel.com](https://vercel.com)
-3. Import your repository
-4. **Add environment variable**: `GROQ_API_KEY` (get it from [console.groq.com/keys](https://console.groq.com/keys))
-5. Click "Deploy"
+2. In Vercel, click **Import** and select your repository
+3. Vercel will automatically:
+   - Install dependencies
+   - Run `prisma generate` (from build script)
+   - Build Next.js app
+   - Deploy to production
 
-**That's it!** Vercel will automatically:
+#### 5. Register Webhook with Inngest
 
-- Install dependencies
-- Run build
-- Deploy to production
-- Set up auto-deployments on every push
+After deployment:
+
+1. Go to your **Inngest Dashboard** → Your App
+2. Click **"Sync App"** or **"Register Functions"**
+3. Enter webhook URL: `https://your-app.vercel.app/api/inngest`
+4. Inngest will verify and register your `process-crawl` function
+
+**Verification:**
+
+- Visit your deployed app URL
+- Test job creation - it should complete successfully
+- Check **Inngest Dashboard** → **Functions** → View execution logs
 
 ### Docker Deployment
 
@@ -130,30 +177,90 @@ npm run lint
 
 ## 📖 API Documentation
 
+### Async Job Pattern
+
+The API uses an asynchronous job pattern with PostgreSQL persistence and background processing:
+
+1. **Create Job** - POST returns immediately with job ID (202 Accepted)
+2. **Poll Status** - Client polls job status every 2 seconds
+3. **Get Result** - Job completes with content or error
+
 ### POST /api/v1/llms-txt
 
-Generate an llms.txt file for a given URL.
+Create a new crawl job.
 
 **Request:**
 
 ```json
 {
   "url": "https://example.com",
-  "preset": "quick" // "quick" | "thorough" | "custom"
+  "preset": "quick", // "quick" | "thorough" | "custom"
+  "languageStrategy": "prefer-english" // optional
 }
 ```
 
-**Response:**
+**Response (202 Accepted):**
 
 ```json
 {
   "success": true,
   "data": {
-    "content": "# Example Site\n\n> Description...",
-    "stats": {
-      "pagesFound": 42,
-      "url": "https://example.com"
-    }
+    "jobId": "clx1234567890",
+    "status": "pending",
+    "statusUrl": "/api/v1/jobs/clx1234567890"
+  }
+}
+```
+
+### GET /api/v1/jobs/:id
+
+Poll job status and retrieve results.
+
+**Response (Processing):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx1234567890",
+    "status": "processing",
+    "createdAt": "2024-01-01T12:00:00Z"
+  }
+}
+```
+
+**Response (Completed):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx1234567890",
+    "status": "completed",
+    "result": {
+      "content": "# Example Site\n\n> Description...",
+      "stats": {
+        "pagesFound": 42,
+        "url": "https://example.com"
+      }
+    },
+    "createdAt": "2024-01-01T12:00:00Z",
+    "completedAt": "2024-01-01T12:01:30Z"
+  }
+}
+```
+
+**Response (Failed):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx1234567890",
+    "status": "failed",
+    "error": "Could not crawl any pages from the provided URL",
+    "createdAt": "2024-01-01T12:00:00Z",
+    "completedAt": "2024-01-01T12:00:15Z"
   }
 }
 ```
@@ -164,8 +271,10 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#api-documentation) for full API document
 
 **Tech Stack:**
 
-- Next.js 14 (App Router) + TypeScript
+- Next.js 16 (App Router) + TypeScript
 - Tailwind CSS v4
+- PostgreSQL + Prisma ORM (job persistence)
+- Inngest (background job processing)
 - Groq (Llama 3.3 70B) for AI descriptions
 - Cheerio for HTML parsing
 - Zod for validation
@@ -173,13 +282,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#api-documentation) for full API document
 
 **Architecture Highlights:**
 
+- **Async job processing** - Non-blocking API with PostgreSQL persistence and Inngest workers
+- **Scalable by design** - Handles long-running crawls (60+ seconds) without blocking requests
+- **Step-based execution** - Checkpointed job steps with automatic retries (3 attempts)
+- **Polling pattern** - Client polls every 2 seconds for real-time status updates
 - **Feature-based organization** - Clean, flat structure following Next.js conventions
 - **AI-first with fallbacks** - Groq (Llama 3.3 70B) with automatic heuristic fallback using Chain of Responsibility pattern
 - **Sitemap-first crawling** - 10-100x faster than full site traversal
 - **BFS fallback** - For sites without sitemaps
 - **SSRF protection** - Blocks localhost, private networks, cloud metadata endpoints
 - **Concurrent processing** - Queue-based crawling with configurable concurrency
-- **Comprehensive testing** - 98 unit tests covering core functionality
+- **Comprehensive testing** - Unit tests covering core functionality
 
 📚 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design, architecture decisions, and technical deep-dive.
 
@@ -195,12 +308,22 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#api-documentation) for full API document
 
 ```
 llm-txt/
+├── prisma/
+│   └── schema.prisma           # Database schema (jobs, status)
 ├── src/
 │   ├── app/
-│   │   ├── api/v1/llms-txt/    # API endpoint
-│   │   └── page.tsx            # Main UI
+│   │   ├── api/
+│   │   │   ├── v1/
+│   │   │   │   ├── llms-txt/   # Create job endpoint
+│   │   │   │   └── jobs/[id]/  # Poll job status endpoint
+│   │   │   └── inngest/        # Inngest webhook handler
+│   │   └── page.tsx            # Main UI with polling
+│   ├── inngest/
+│   │   ├── client.ts           # Inngest client
+│   │   └── functions.ts        # Background job processor
 │   ├── components/             # React components
 │   ├── lib/
+│   │   ├── db.ts               # Prisma client singleton
 │   │   ├── llms-txt/           # Main feature (generate, format, validate)
 │   │   ├── ai-enhancement/     # AI + fallback strategies
 │   │   ├── crawling/           # Web crawling engine

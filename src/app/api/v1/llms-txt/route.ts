@@ -1,24 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateLlmsTxtUseCase } from "@/lib";
 import { validateRequest, withErrorHandler, successResponse } from "@/lib/api";
 import { crawlOptionsSchema } from "@/lib/api";
 import type { GenerateRequest } from "@/lib/api";
+import { db } from "@/lib/db";
+import { inngest } from "@/inngest/client";
+import { JobStatus } from "@prisma/client";
+import { CRAWL_REQUESTED } from "@/inngest/events";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // 60 seconds max
+export const maxDuration = 300; // 5 minutes for job creation and Inngest trigger
 
 /**
  * POST /api/v1/llms-txt
- * Generate llms.txt for a given URL
+ * Create async job for llms.txt generation
  *
- * RESTful API Design:
- * - Resource-based endpoint (llms-txt is the resource)
- * - Path-based versioning (v1)
- * - Follows Clean Architecture layers:
- *   → API Layer: HTTP concerns (validation, serialization)
- *   → Application Layer: Use case orchestration
- *   → Domain Layer: Business logic (crawler, generator)
- *   → Infrastructure Layer: External services (AI, HTTP)
+ * Returns immediately with job ID, client polls /api/v1/jobs/:id for status
+ *
+ * Architecture:
+ * - API Layer: HTTP concerns (validation, job creation)
+ * - Inngest: Background job processing
+ * - Database: Job status persistence
  */
 export const POST = withErrorHandler(async (request: NextRequest) => {
   // Validate request (schema conforms to GenerateRequest DTO)
@@ -27,9 +28,31 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     crawlOptionsSchema
   );
 
-  // Execute use case
-  const result = await generateLlmsTxtUseCase.execute(requestData);
+  // Create job in database
+  const job = await db.crawlJob.create({
+    data: {
+      url: requestData.url,
+      preset: requestData.preset || "quick",
+      status: JobStatus.PENDING,
+    },
+  });
 
-  // Return success response
-  return NextResponse.json(successResponse(result));
+  // Trigger Inngest background job
+  await inngest.send({
+    name: CRAWL_REQUESTED,
+    data: {
+      jobId: job.id,
+      ...requestData,
+    },
+  });
+
+  // Return job ID immediately (async pattern)
+  return NextResponse.json(
+    successResponse({
+      jobId: job.id,
+      status: "pending",
+      statusUrl: `/api/v1/jobs/${job.id}`,
+    }),
+    { status: 202 } // 202 Accepted
+  );
 });

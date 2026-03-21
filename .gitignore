@@ -45,3 +45,5 @@ next-env.d.ts
 
 # husky
 .husky/_
+
+/src/generated/prisma

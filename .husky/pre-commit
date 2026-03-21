@@ -1,2 +1,10 @@
 npx lint-staged
 npm run type-check
+
+# Remind about migrations if schema changed
+if git diff --cached --name-only | grep -q "prisma/schema.prisma"; then
+  echo ""
+  echo "⚠️  prisma/schema.prisma changed!"
+  echo "📝 Did you run: npx prisma migrate dev --name <description>"
+  echo ""
+fi

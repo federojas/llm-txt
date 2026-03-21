@@ -303,22 +303,110 @@ class Crawler {
 
 ## Data Flow
 
-### Request Flow
+### Async Job Processing Architecture
+
+The system uses **PostgreSQL + Prisma + Inngest** for scalable async job processing:
+
+```
+POST /api/v1/llms-txt (202 Accepted)
+  ↓
+Create CrawlJob in PostgreSQL (status: PENDING)
+  ↓
+Send event to Inngest ("crawl/requested")
+  ↓
+Return jobId + statusUrl immediately
+  ↓
+Client polls GET /api/v1/jobs/:id every 2 seconds
+  ↓
+Inngest Worker processes in background:
+  Step 1: Update status → PROCESSING
+  Step 2: Execute crawl + generate content
+  Step 3: Save result → COMPLETED or FAILED
+  ↓
+Client receives final result when polling
+```
+
+**Why Async?**
+
+- Long-running operations (60+ seconds for large sites)
+- Non-blocking API (handle multiple concurrent requests)
+- Automatic retries (Inngest retries failed jobs 3 times)
+- Step-based execution (checkpointed, resumable)
+- Production-ready scalability
+
+**Database Schema (Prisma):**
+
+```prisma
+model CrawlJob {
+  id          String    @id @default(cuid())
+  url         String
+  preset      String
+  status      JobStatus @default(PENDING)
+  result      Json?     // Stores content + stats
+  error       String?
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([url])
+}
+
+enum JobStatus {
+  PENDING      // Job created, waiting for worker
+  PROCESSING   // Worker is executing the crawl
+  COMPLETED    // Successfully finished
+  FAILED       // Error occurred (with error message)
+}
+```
+
+**Key Files:**
+
+- `prisma/schema.prisma` - Database schema for job tracking
+- `src/lib/db.ts` - Prisma client singleton
+- `src/inngest/client.ts` - Inngest client configuration
+- `src/inngest/functions.ts` - Background job processor with step-based execution
+- `src/app/api/inngest/route.ts` - Inngest webhook endpoint
+- `src/app/api/v1/llms-txt/route.ts` - Creates job, triggers Inngest, returns 202
+- `src/app/api/v1/jobs/[id]/route.ts` - Job status polling endpoint
+- `src/app/page.tsx` - Frontend polling implementation (polls every 2s)
+
+### Request Flow (Async)
 
 ```
 POST /api/v1/llms-txt
   ↓
 Validation (Zod schemas)
   ↓
-GenerateLlmsTxt.execute()
+Create CrawlJob record (Prisma)
   ↓
-Crawler.crawl() → Pages
+Trigger Inngest event
   ↓
-ContentGeneratorFactory → AI services
+Return 202 Accepted with jobId
   ↓
-Formatter.generate() → llms.txt content
+[Background Worker]
   ↓
-Standardized API response
+Inngest receives event
+  ↓
+Step 1: Mark job as PROCESSING
+  ↓
+Step 2: GenerateLlmsTxt.execute()
+    ↓
+    Crawler.crawl() → Pages
+    ↓
+    ContentGeneratorFactory → AI services
+    ↓
+    Formatter.generate() → llms.txt content
+  ↓
+Step 3: Save result as COMPLETED/FAILED
+  ↓
+[Client Polling]
+  ↓
+GET /api/v1/jobs/:id (every 2 seconds)
+  ↓
+Fetch CrawlJob from PostgreSQL
+  ↓
+Return status + result (when completed)
 ```
 
 ### AI Enhancement Flow
@@ -451,8 +539,39 @@ export interface GenerateSitemapResponse {}
 ## Environment Variables
 
 ```bash
-GROQ_API_KEY=xxx         # Optional: Groq API for AI enhancement
-NODE_ENV=development     # Environment
+# Required: PostgreSQL database for job persistence
+DATABASE_URL=postgresql://user:pass@localhost:5432/db
+
+# Optional: Groq API for AI enhancement (falls back to heuristics without it)
+GROQ_API_KEY=xxx
+
+# Required for production: Inngest event keys
+INNGEST_EVENT_KEY=xxx
+INNGEST_SIGNING_KEY=xxx
+
+# Optional: Development environment
+NODE_ENV=development
+```
+
+**Setup:**
+
+```bash
+# 1. Copy example environment file
+cp .env.example .env
+
+# 2. Set up PostgreSQL (local or cloud)
+createdb llms_txt_dev
+# Or use Vercel Postgres (recommended for production)
+
+# 3. Push database schema
+npm run db:push
+
+# 4. Get Groq API key (free, no credit card)
+# https://console.groq.com/keys
+
+# 5. Run dev servers
+npm run dev              # Next.js (port 3000)
+npm run dev:inngest      # Inngest Dev Server (port 8288)
 ```
 
 ---
@@ -461,12 +580,15 @@ NODE_ENV=development     # Environment
 
 ### POST /api/v1/llms-txt
 
+Creates a new crawl job (async pattern).
+
 **Request:**
 
 ```json
 {
   "url": "https://example.com",
   "preset": "quick",
+  "languageStrategy": "prefer-english",
   "maxPages": 50,
   "maxDepth": 3,
   "timeout": 10000,
@@ -474,17 +596,68 @@ NODE_ENV=development     # Environment
 }
 ```
 
-**Response:**
+**Response (202 Accepted):**
 
 ```json
 {
   "success": true,
   "data": {
-    "content": "# Example\n\n> Description\n\n## Section\n...",
-    "stats": {
-      "pagesFound": 42,
-      "url": "https://example.com"
-    }
+    "jobId": "clx1234567890",
+    "status": "pending",
+    "statusUrl": "/api/v1/jobs/clx1234567890"
+  }
+}
+```
+
+### GET /api/v1/jobs/:id
+
+Poll job status and retrieve results.
+
+**Response (Pending/Processing):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx1234567890",
+    "status": "processing",
+    "createdAt": "2024-01-01T12:00:00Z"
+  }
+}
+```
+
+**Response (Completed):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx1234567890",
+    "status": "completed",
+    "result": {
+      "content": "# Example\n\n> Description\n\n## Section\n...",
+      "stats": {
+        "pagesFound": 42,
+        "url": "https://example.com"
+      }
+    },
+    "createdAt": "2024-01-01T12:00:00Z",
+    "completedAt": "2024-01-01T12:01:30Z"
+  }
+}
+```
+
+**Response (Failed):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx1234567890",
+    "status": "failed",
+    "error": "Could not crawl any pages from the provided URL",
+    "createdAt": "2024-01-01T12:00:00Z",
+    "completedAt": "2024-01-01T12:00:15Z"
   }
 }
 ```
@@ -494,9 +667,11 @@ NODE_ENV=development     # Environment
 ## Summary
 
 **Architecture:** Next.js standard patterns with feature folders
+**Job Processing:** PostgreSQL + Prisma + Inngest for async, scalable background jobs
 **Organization:** Flat, practical, easy to navigate
 **Naming:** Simple, no redundant suffixes
 **AI Strategy:** AI-first with automatic fallback chains
-**Tests:** 98/98 passing
+**Async Pattern:** Non-blocking API with polling (handles 60+ second operations)
+**Database:** Prisma ORM with PostgreSQL for job persistence and tracking
 
-**Result:** Production-ready, maintainable, scalable Next.js application ✅
+**Result:** Production-ready, maintainable, scalable Next.js application with enterprise-grade async job processing ✅

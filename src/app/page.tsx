@@ -1,18 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { UrlInput } from "@/components/url-input";
 import { LoadingState } from "@/components/loading-state";
 import { ResultPreview } from "@/components/result-preview";
 import { CrawlPreset, LanguageStrategy } from "@/lib/types";
 
+type JobStatus = "pending" | "processing" | "completed" | "failed";
+
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
+  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [result, setResult] = useState<{
     content: string;
     stats: { pagesFound: number; url: string };
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const pollJobStatus = async (statusUrl: string) => {
+    try {
+      const response = await fetch(statusUrl);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error?.details ||
+            data.error?.message ||
+            "Failed to fetch job status"
+        );
+      }
+
+      const status = data.data.status as JobStatus;
+      setJobStatus(status);
+
+      if (status === "completed") {
+        // Job completed successfully
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setIsLoading(false);
+        setResult({
+          content: data.data.result.content,
+          stats: data.data.result.stats,
+        });
+      } else if (status === "failed") {
+        // Job failed
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setIsLoading(false);
+        setError(data.data.error || "Job failed");
+      }
+      // If status is "pending" or "processing", continue polling
+    } catch (err) {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      setIsLoading(false);
+      setError(
+        err instanceof Error ? err.message : "Failed to poll job status"
+      );
+    }
+  };
 
   const handleGenerate = async (
     url: string,
@@ -22,8 +84,10 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     setResult(null);
+    setJobStatus(null);
 
     try {
+      // Step 1: Create job
       const response = await fetch("/api/v1/llms-txt", {
         method: "POST",
         headers: {
@@ -36,18 +100,24 @@ export default function Home() {
 
       if (!response.ok) {
         throw new Error(
-          data.error?.details || data.error?.message || "Failed to generate"
+          data.error?.details || data.error?.message || "Failed to create job"
         );
       }
 
-      setResult({
-        content: data.data.content,
-        stats: data.data.stats,
-      });
+      // Step 2: Start polling for job status
+      const statusUrl = data.data.statusUrl;
+      setJobStatus(data.data.status);
+
+      // Poll immediately
+      await pollJobStatus(statusUrl);
+
+      // Then poll every 2 seconds
+      pollingIntervalRef.current = setInterval(() => {
+        pollJobStatus(statusUrl);
+      }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
       setIsLoading(false);
+      setError(err instanceof Error ? err.message : "An error occurred");
     }
   };
 
@@ -109,7 +179,7 @@ export default function Home() {
             <UrlInput onGenerate={handleGenerate} isLoading={isLoading} />
           )}
 
-          {isLoading && <LoadingState />}
+          {isLoading && <LoadingState status={jobStatus} />}
 
           {result && (
             <ResultPreview
