@@ -34,9 +34,7 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       # Inngest Dev Server configuration
       INNGEST_DEV: "true"
-      INNGEST_DEV_SERVER_URL: http://inngest:8288
-      INNGEST_EVENT_KEY: ""
-      INNGEST_SIGNING_KEY: ""
+      INNGEST_BASE_URL: "http://inngest:8288"
     volumes:
       - .:/app
       - /app/node_modules
@@ -50,20 +48,16 @@ services:
 
   # Inngest Dev Server
   inngest:
-    image: node:20-alpine
+    image: inngest/inngest:latest
     container_name: llms-txt-inngest
     restart: unless-stopped
     ports:
       - "8288:8288"
-    working_dir: /app
-    volumes:
-      - .:/app
-      - /app/node_modules
-    depends_on:
-      - app
+    environment:
+      - INNGEST_DEV=1
     networks:
       - llms-txt-network
-    command: npx inngest-cli@latest dev -u http://app:3000/api/inngest
+    command: inngest dev -u http://app:3000/api/inngest
 
 volumes:
   postgres_data:

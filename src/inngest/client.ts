@@ -5,8 +5,18 @@
 
 import { Inngest } from "inngest";
 
+const isDev = process.env.INNGEST_DEV === "true";
+const baseUrl = process.env.INNGEST_BASE_URL;
+
 export const inngest = new Inngest({
   id: "llm-txt",
-  // In development with INNGEST_DEV=true, SDK will skip cloud API
-  isDev: process.env.INNGEST_DEV === "true",
+  // In production, use INNGEST_EVENT_KEY
+  eventKey: isDev ? undefined : process.env.INNGEST_EVENT_KEY,
+  // For local Docker dev: point to dev server
+  ...(isDev && baseUrl
+    ? {
+        eventApiOrigin: baseUrl,
+        inngestApiOrigin: baseUrl,
+      }
+    : {}),
 });

@@ -17,7 +17,7 @@ export const processCrawl = inngest.createFunction(
   {
     id: "process-crawl",
     name: "Process Crawl Job",
-    triggers: [{ event: CRAWL_REQUESTED }],
+    triggers: { event: CRAWL_REQUESTED },
   },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async ({ event, step }: any) => {
