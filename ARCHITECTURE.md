@@ -1,1228 +1,502 @@
-# Architecture Documentation
+# Next.js Standard Architecture
 
-## System Overview
+## Overview
 
-The llms.txt Generator is a full-stack Next.js application that crawls websites and generates llms.txt files following the official specification. The system is designed with production-grade concerns including security, performance, and reliability, following Clean Architecture and Domain-Driven Design principles.
+This codebase follows **Next.js standard patterns** with feature-based organization and shared service layers. It emphasizes simplicity, flat structure, and practical organization over abstract layering.
 
-## High-Level Architecture
+## Core Principles
 
-```
-┌─────────────┐
-│   Browser   │
-│   (React)   │
-└──────┬──────┘
-       │ HTTP
-       ↓
-┌─────────────────────┐
-│   Next.js Server    │
-│   ┌─────────────┐   │
-│   │  API Routes │   │
-│   └──────┬──────┘   │
-│          │          │
-│   ┌──────↓──────┐   │
-│   │  Crawler    │───┼──→ External Websites
-│   │   Service   │   │
-│   └──────┬──────┘   │
-│          │          │
-│   ┌──────↓──────┐   │
-│   │  Generator  │   │
-│   └─────────────┘   │
-└─────────────────────┘
-```
+1. **Feature-based organization** - Features live in their own folders with related code
+2. **Shared services** - Common functionality (crawling, HTTP, AI) in dedicated folders
+3. **Simple naming** - No redundant suffixes (Service, Adapter, Client)
+4. **Flat structure** - Avoid deep nesting, keep files discoverable
+5. **AI-first** - AI enhancement with automatic fallback chains
 
 ---
 
-## Layered Architecture
-
-The application follows a strict layered architecture with clear separation of concerns:
-
-```
-┌─────────────────────────────────────┐
-│   Application/API Layer             │
-│   (app/api/generate/route.ts)       │
-└───────────────┬─────────────────────┘
-                │ depends on
-┌───────────────▼─────────────────────┐
-│   Use Cases Layer                   │
-│   (Application Orchestration)       │
-│   - generate-llms-txt.use-case.ts   │
-└───────────────┬─────────────────────┘
-                │ depends on
-┌───────────────▼─────────────────────┐
-│   Domain Layer                      │
-│   (Business Logic)                  │
-│   - Services, Interfaces            │
-│   - Depends on INTERFACES only      │
-└───────────────┬─────────────────────┘
-                │ depends on (abstraction)
-┌───────────────▼─────────────────────┐
-│   Infrastructure Layer              │
-│   (External Adapters)               │
-│   - HTTP clients, AI adapters       │
-│   - Implements domain interfaces    │
-└─────────────────────────────────────┘
-```
-
-### Directory Structure by Layer
+## Project Structure
 
 ```
 src/lib/
-├── domain/              # Business Logic (Layer 1)
-│   ├── interfaces/      # Contracts/Abstractions
-│   │   ├── crawler-service.interface.ts
-│   │   ├── description-generator.interface.ts
-│   │   └── description-service.interface.ts
-│   ├── services/        # Domain services
-│   │   ├── crawler.service.ts
-│   │   └── description.service.ts
-│   ├── generator/       # llms.txt generation logic
-│   ├── parser/          # HTML/sitemap parsing
-│   ├── logic/           # Domain logic (URL classification)
-│   └── validation/      # Domain validation rules
-│
-├── infrastructure/      # External Adapters (Layer 2)
-│   ├── adapters/
-│   │   └── description-generators/
-│   │       ├── groq-generator.ts
-│   │       ├── heuristic-generator.ts
-│   │       └── generator-factory.ts
-│   └── clients/
-│       ├── http-client.ts
-│       └── sitemap-client.ts
-│
-├── use-cases/           # Application Layer (Layer 3)
-│   └── generate-llms-txt.use-case.ts
-│
-├── api/                 # API Layer (Layer 4)
-│   ├── dtos/            # Data Transfer Objects
-│   ├── errors/          # API error handling
-│   ├── middleware/      # Express/Next.js middleware
-│   ├── responses/       # Standardized responses
-│   ├── security/        # SSRF protection
-│   └── validation/      # Request validation (Zod)
-│
-├── shared/              # Pure Utilities (No Layer)
-│   └── url-utils.ts     # URL formatting/parsing (pure functions)
-│
-└── config/              # Configuration (No Layer)
-    └── presets.ts       # Crawl presets
+├── llms-txt/            # Main feature: llms.txt generation
+├── ai-enhancement/      # AI + fallback strategies for content enhancement
+├── crawling/            # Web crawling services
+├── http/                # HTTP communication layer
+├── url/                 # URL utilities
+├── api/                 # API layer (errors, DTOs, validation, security)
+├── types/               # Shared TypeScript types
+└── config/              # Configuration and presets
 ```
 
-### Layer Definitions
+---
 
-#### Domain Layer (`src/lib/domain/`)
+## Detailed Structure
 
-**Purpose**: Business logic and domain rules
+### llms-txt/ (Main Feature)
 
-**Characteristics**:
+```
+llms-txt/
+├── generate.ts          # Main orchestrator (crawl → generate → format)
+├── formatter.ts         # Transforms pages into llms.txt format
+├── validator.ts         # Validates llms.txt spec compliance
+└── index.ts            # Public exports
+```
 
-- No external dependencies (DB, HTTP, APIs)
-- Depends only on domain interfaces (abstractions)
-- Contains business rules and workflows
-- Pure business logic, framework-agnostic
+**Purpose:** Single feature folder containing all llms.txt generation logic.
 
-**Components**:
+**Key class:** `GenerateLlmsTxt`
 
-- `services/crawler.service.ts` - Crawling strategy and BFS logic
-- `services/description.service.ts` - Description generation orchestration
-- `generator/` - llms.txt generation rules
-- `parser/` - HTML/sitemap parsing logic
-- `interfaces/` - Contracts that infrastructure implements
+- Orchestrates crawler, formatter, and AI services
+- Handles configuration building
+- Returns structured response with content and stats
 
-**Example**:
+---
+
+### ai-enhancement/ (AI + Fallbacks)
+
+```
+ai-enhancement/
+├── groq/                           # Groq AI provider
+│   ├── groq-client.ts             # Groq API client with rate limiting
+│   ├── groq-description-generator.ts
+│   ├── groq-section-discovery.ts
+│   ├── groq-title-cleaner.ts
+│   └── index.ts
+├── heuristic/                      # Non-AI fallback strategies
+│   ├── heuristic-description-generator.ts
+│   ├── heuristic-section-discovery.ts
+│   ├── heuristic-title-cleaner.ts
+│   └── index.ts
+├── content-generator-factory.ts    # Creates AI → Heuristic chains
+├── chained-service.ts             # Chain of Responsibility pattern
+├── rate-limiter.ts                # Token bucket rate limiter
+├── types.ts                       # AI service interfaces
+└── index.ts
+```
+
+**Purpose:** AI-powered content enhancement with automatic fallback to heuristics.
+
+**Key pattern:** Chain of Responsibility
 
 ```typescript
-// Domain depends on abstraction, not implementation
-import { IDescriptionGenerator } from "../interfaces";
-
-export class DescriptionService {
-  constructor(
-    private primaryGenerator: IDescriptionGenerator, // Interface
-    private fallbackGenerator: IDescriptionGenerator
-  ) {}
+createDescriptionGenerator() {
+  return chain([
+    GroqDescriptionGenerator,      // Try AI first
+    HeuristicDescriptionGenerator  // Fall back to simple rules
+  ]);
 }
 ```
 
-#### Infrastructure Layer (`src/lib/infrastructure/`)
+**Key classes:**
 
-**Purpose**: External adapters and infrastructure concerns
+- `ContentGeneratorFactory` - Creates chained services
+- `GroqClient` - Handles Groq API with rate limiting
+- Simple class names: `GroqDescriptionGenerator`, not `GroqDescriptionGeneratorAdapter`
 
-**Characteristics**:
+---
 
-- Implements domain interfaces
-- Handles external I/O (HTTP, APIs, databases)
-- Contains infrastructure code (rate limiting, caching)
-- Has side effects (network calls, file I/O)
+### crawling/ (Web Crawling)
 
-**Components**:
-
-- `adapters/description-generators/groq-generator.ts` - Groq API adapter
-- `adapters/description-generators/heuristic-generator.ts` - Fallback generator
-- `clients/http-client.ts` - HTTP client (wraps axios)
-- `clients/sitemap-client.ts` - Sitemap fetching
-
-**Example**:
-
-```typescript
-// Infrastructure implements domain interface
-export class GroqDescriptionGenerator implements IDescriptionGenerator {
-  private client: Groq;
-
-  async generateDescription(page: PageMetadata): Promise<string> {
-    // External API call
-    const response = await this.client.chat.completions.create({...});
-    return response.choices[0].message.content;
-  }
-}
+```
+crawling/
+├── crawler.ts              # Main crawler orchestrator
+├── parser.ts              # HTML parsing with Cheerio
+├── language-detector.ts   # Detects page language
+├── ad-blocker.ts          # Blocks ads/trackers (Ghostery)
+├── boundaries.ts          # Crawl boundary rules (depth, internal/external)
+├── external-links.ts      # Quality filtering for external links
+└── index.ts
 ```
 
-#### Use Cases Layer (`src/lib/use-cases/`)
+**Purpose:** Everything related to crawling websites and extracting data.
 
-**Purpose**: Application orchestration and business workflows
+**Key classes:**
 
-**Characteristics**:
+- `Crawler` - Orchestrates crawl with concurrency, depth limits
+- `HtmlParser` - Extracts metadata, links from HTML
+- `LanguageDetector` - URL patterns + HTML lang + content analysis
+- `AdBlocker` - Ghostery-based ad/tracker blocking
 
-- Coordinates between domain services
-- Implements application-specific workflows
-- No framework dependencies
-- Reusable across different entry points (API, CLI, workers)
+**Note:** `boundaries.ts` contains pure functions (not classes) for crawl boundary logic.
 
-**Example**:
+---
 
-```typescript
-export class GenerateLlmsTxtUseCase {
-  async execute(request: GenerateRequest): Promise<GenerateResponse> {
-    // Orchestrate domain services
-    const crawlerService = new CrawlerService(config);
-    const pages = await crawlerService.crawl();
-    const content = await generateLlmsTxt(pages);
-    return { content, stats: {...} };
-  }
-}
+### http/ (HTTP Layer)
+
+```
+http/
+├── client.ts     # HTTP client with retries and timeouts
+├── sitemap.ts    # Sitemap fetcher/parser
+├── robots.ts     # Robots.txt fetcher/parser
+└── index.ts
 ```
 
-#### API Layer (`src/lib/api/`)
+**Purpose:** All HTTP communication with external services.
 
-**Purpose**: HTTP API concerns (Next.js routes)
+**Key features:**
 
-**Characteristics**:
-
-- Request/response handling
-- Validation, serialization
+- Automatic retries with exponential backoff
+- Configurable timeouts
+- User-agent handling
 - Error handling
-- Security (SSRF protection)
-- Framework-specific (Next.js)
 
-#### Shared Utilities (`src/lib/shared/`)
+---
 
-**Purpose**: Pure, stateless utility functions
-
-**Characteristics**:
-
-- **No side effects** (no I/O, no state mutation)
-- **Pure functions** - same input → same output
-- **No external dependencies**
-- Testable without mocks
-
-**Examples**:
-
-- ✅ `url-utils.ts` - URL parsing, normalization
-- ❌ `http-client.ts` - Has side effects, belongs in infrastructure
-- ❌ Database client - Has side effects
-- ❌ Cache - Stateful
-
-### Dependency Flow Principles
-
-**Key Principle**: Dependencies point inward. Domain → Abstractions, Infrastructure → Implementations
+### url/ (URL Utilities)
 
 ```
-API Layer
-   ↓ (uses)
-Use Cases Layer
-   ↓ (uses)
-Domain Layer (depends on interfaces)
-   ↑ (implements)
-Infrastructure Layer
+url/
+├── normalization.ts    # URL normalization (trailing slashes, fragments)
+├── helpers.ts         # URL manipulation utilities
+└── index.ts
 ```
 
-**Benefits**:
+**Purpose:** Pure utility functions for URL handling.
 
-1. **Testability**: Mock interfaces, not implementations
-2. **Maintainability**: Clear separation of concerns
-3. **Flexibility**: Swap implementations without changing domain
-4. **Understandability**: Consistent structure across codebase
-5. **Scalability**: Easy to add new features in the right place
+---
 
-### Decision Tree: Where Does This Code Go?
-
-#### Is it a pure function with no side effects?
-
-- **Yes** → `shared/`
-- **No** → Continue
-
-#### Does it contain business logic/rules?
-
-- **Yes** → `domain/`
-- **No** → Continue
-
-#### Does it interact with external systems (HTTP, DB, APIs)?
-
-- **Yes** → `infrastructure/`
-- **No** → Continue
-
-#### Is it HTTP API-specific (routes, validation, DTOs)?
-
-- **Yes** → `api/`
-- **No** → `use-cases/` or `config/`
-
-### Common Mistakes to Avoid
-
-#### ❌ Wrong: HTTP Client in Shared Utilities
+### api/ (API Layer)
 
 ```
-src/lib/shared/
-└── http-client.ts  # ❌ Has side effects, not pure
+api/
+├── dtos/
+│   ├── llms-txt.ts        # Request/Response DTOs for llms-txt endpoint
+│   └── index.ts
+├── middleware/
+│   ├── error-handler.ts   # Global error handler
+│   ├── validation.ts      # Zod validation middleware
+│   └── index.ts
+├── api-error.ts           # Custom error classes
+├── api-response.ts        # Standardized API responses
+├── schemas.ts             # Zod validation schemas
+├── ssrf.ts               # SSRF protection
+└── index.ts
 ```
 
-**Why wrong**: HTTP client has I/O, state (rate limiter, retries), not pure
+**Purpose:** API layer concerns (validation, errors, DTOs, security).
 
-#### ✅ Correct: HTTP Client in Infrastructure
+**Key features:**
+
+- Standardized error responses
+- Zod schema validation
+- SSRF protection (blocks private IPs, localhost)
+- Type-safe DTOs
+
+---
+
+### types/ (Shared Types)
 
 ```
-src/lib/infrastructure/clients/
-└── http-client.ts  # ✓ External adapter
+types/
+├── crawl.ts      # CrawlConfig, CrawlProgress
+├── page.ts       # PageMetadata
+├── output.ts     # LinkItem, SectionGroup, LlmsTxtOutput
+└── index.ts
 ```
 
-#### ❌ Wrong: Domain Depending on Concrete Implementation
+**Purpose:** Consolidated TypeScript types used across the application.
 
-```typescript
-// domain/services/description.service.ts
-import { GroqDescriptionGenerator } from "@/lib/infrastructure/adapters/description-generators/groq-generator"; // ❌
+**Note:** Replaced scattered `models/` and `interfaces/` folders with single `types/` folder.
 
-class DescriptionService {
-  private adapter = new GroqDescriptionGenerator(); // ❌ Tightly coupled
-}
+---
+
+### config/ (Configuration)
+
 ```
-
-**Why wrong**: Domain coupled to specific infrastructure, can't test or swap
-
-#### ✅ Correct: Domain Depending on Interface
-
-```typescript
-// domain/services/description.service.ts
-import { IDescriptionGenerator } from "../interfaces"; // ✓
-
-class DescriptionService {
-  constructor(private generator: IDescriptionGenerator) {} // ✓ Loosely coupled
-}
+config/
+├── presets.ts    # Preset configurations (quick, thorough, custom)
+└── index.ts
 ```
 
 ---
 
-## Core Components
+## Architecture Decisions
 
-### 1. Frontend (React/Next.js)
+### ✅ Removed Clean Architecture Layers
 
-**Location**: `app/page.tsx`, `components/`
+**Before:** domain/ → application/ → infrastructure/
+**After:** Feature folders + shared services
 
-**Responsibilities**:
+**Why:** Clean Architecture is overkill for this Next.js app. Three abstract layers created unnecessary indirection.
 
-- User input collection
-- Progress visualization
-- Result preview and editing
-- Download/copy functionality
+### ✅ Simplified Class Names
 
-**Key Components**:
+**Before:** `CrawlerService`, `GhosteryAdBlockerAdapter`, `CheerioHtmlParser`
+**After:** `Crawler`, `AdBlocker`, `HtmlParser`
 
-- `UrlInput`: Form with URL validation and preset selection
-- `LoadingState`: Progress indicator during crawling
-- `ResultPreview`: Display, edit, copy, and download generated content
+**Why:** Removed redundant suffixes. The folder structure provides context.
 
-### 2. API Layer
+### ✅ Feature-Based Organization
 
-**Location**: `app/api/generate/route.ts`
+**Before:** Scattered across use-cases/, services/, adapters/
+**After:** llms-txt/ folder contains all generation logic
 
-**Responsibilities**:
+**Why:** Next.js standard. Easy to find related code. Clear feature boundaries.
 
-- Request validation using Zod schemas
-- Orchestrating crawl and generation
-- Error handling and response formatting
+### ✅ Renamed content-generation → ai-enhancement
 
-**Endpoint**: `POST /api/generate`
+**Why:** Better conveys purpose (AI-powered enhancement). Heuristic fallback is implementation detail.
 
-**Request Flow**:
+### ✅ Removed Hardcoded Classification
 
-```
-1. Receive request with URL and options
-2. Validate input (Zod + SSRF protection)
-3. Delegate to use case
-4. Return formatted response
-```
+**Before:** 300+ lines of YouTube-specific URL patterns
+**After:** AI-first classification with simple fallback
 
-### 3. Crawler Service
+**Why:** AI is better at understanding content semantics. Removed fragile pattern matching.
 
-**Location**: `src/lib/domain/services/crawler.service.ts`
+### ✅ Consolidated Types
 
-**Design**: Hybrid sitemap-first + BFS (Breadth-First Search) crawler
+**Before:** domain/models/, domain/interfaces/ scattered everywhere
+**After:** Single types/ folder
 
-**Key Features**:
+**Why:** Types are shared across layers. No need for separation.
 
-- **Sitemap-first strategy** (10-100x faster)
-- Fallback to BFS crawling
-- Concurrent request handling
-- Visited URL tracking
-- Depth limiting
-- Timeout protection
+### ✅ Moved Utilities to Correct Locations
 
-**Crawl Strategy**:
+**Before:** rate-limiter in http/ (only used by AI)
+**After:** rate-limiter in ai-enhancement/
 
-```typescript
-1. Try to find and parse sitemap.xml
-   ├─ Check common paths: /sitemap.xml, /sitemap_index.xml, etc.
-   ├─ Check robots.txt for sitemap URL
-   ├─ If found → Extract URLs (priority-sorted)
-   └─ If not found OR insufficient → Start BFS from homepage
-
-2. For each URL:
-   ├─ Check if already visited
-   ├─ Fetch HTML content
-   ├─ Extract metadata
-   ├─ Extract internal links
-   └─ Add new links to queue (if within depth limit)
-
-3. Continue until:
-   ├─ Max pages reached
-   ├─ Max depth exceeded
-   └─ Queue empty
-```
-
-**Concurrency Model**:
-
-```
-┌──────────────┐
-│  Main Queue  │
-└──────┬───────┘
-       │
-       ├─→ [Batch 1: 5 URLs] ──→ Process in parallel
-       │
-       ├─→ [Batch 2: 5 URLs] ──→ Process in parallel
-       │
-       └─→ [Batch 3: 5 URLs] ──→ Process in parallel
-```
-
-### 4. Parser Layer
-
-**Location**: `src/lib/domain/parser/`
-
-**Components**:
-
-- `html.ts`: Extracts metadata from HTML using Cheerio
-- `sitemap.ts`: Parses sitemap.xml files
-
-**Metadata Extraction**:
-
-```typescript
-Sources (in priority order):
-Title:
-1. <title> tag
-2. <meta property="og:title">
-3. <h1> tag
-4. Fallback: "Untitled"
-
-Description:
-1. <meta name="description">
-2. <meta property="og:description">
-3. None
-```
+**Why:** Utilities should live with their consumers.
 
 ---
 
-## AI Description Generation Architecture
+## Design Patterns
 
-### Overview
-
-The description generation system follows strict layered architecture with dependency inversion:
-
-```
-┌─────────────────────────────────────────────┐
-│         Domain Layer (Business Logic)       │
-│  - DescriptionService                       │
-│  - IDescriptionGenerator Interface          │
-│  - IDescriptionService Interface            │
-└─────────────────┬───────────────────────────┘
-                  │ (depends on abstraction)
-┌─────────────────▼───────────────────────────┐
-│      Infrastructure Layer (Adapters)        │
-│  - GroqDescriptionGenerator (AI)            │
-│  - HeuristicDescriptionGenerator (fallback) │
-│  - DescriptionGeneratorFactory              │
-│  - RateLimiter (token bucket)               │
-└─────────────────────────────────────────────┘
-```
-
-### Components
-
-#### Domain Layer
-
-**`interfaces/description-generator.interface.ts`**
-
-Defines the contract that all description generators must implement:
+### Strategy Pattern with Fallback Chains
 
 ```typescript
-export interface IDescriptionGenerator {
-  generateDescription(page: PageMetadata): Promise<string>;
-  generateBusinessSummary(homepage: PageMetadata): Promise<string>;
-  isAvailable(): boolean;
-}
+// Factory creates chains: AI → Heuristic
+const descriptionGenerator = factory.createDescriptionGenerator();
+
+// Automatically tries Groq first, falls back to heuristic
+const description = await descriptionGenerator.generateDescription(page);
 ```
 
-**Why**: Dependency Inversion Principle - domain logic depends on abstractions, not implementations.
+### Interfaces Only Where Needed
 
-**`interfaces/description-service.interface.ts`**
+Interfaces exist for:
+
+1. AI strategies (multiple implementations: Groq, Heuristic)
+2. Crawling services with DI (AdBlocker)
+
+No interfaces for:
+
+- Single implementations (Crawler, Formatter)
+- Pure utility functions (URL helpers)
+
+### Dependency Injection
 
 ```typescript
-export interface IDescriptionService {
-  generateBusinessSummary(homepage: PageMetadata): Promise<string>;
-  generateDescriptions(pages: PageMetadata[]): Promise<Map<string, string>>;
-}
-```
-
-**`services/description.service.ts`**
-
-Orchestrates description generation with fallback handling:
-
-```typescript
-export class DescriptionService implements IDescriptionService {
+// Constructor injection for testability
+class Crawler {
   constructor(
-    private primaryGenerator: IDescriptionGenerator,
-    private fallbackGenerator: IDescriptionGenerator
+    config: CrawlConfig,
+    httpClient?: HttpClient,
+    sitemapClient?: SitemapClient,
+    languageDetector?: LanguageDetector,
+    adBlocker?: IAdBlocker
   ) {}
-
-  async generateDescriptions(
-    pages: PageMetadata[]
-  ): Promise<Map<string, string>> {
-    const descriptions = new Map<string, string>();
-
-    for (const page of pages) {
-      try {
-        const desc = await this.primaryGenerator.generateDescription(page);
-        descriptions.set(page.url, desc);
-      } catch (error) {
-        // Automatic fallback
-        const desc = await this.fallbackGenerator.generateDescription(page);
-        descriptions.set(page.url, desc);
-      }
-    }
-
-    return descriptions;
-  }
-}
-```
-
-**Responsibilities**:
-
-- Orchestrate multi-page description generation
-- Handle generator failures with automatic fallback
-- Business logic for description generation flow
-- Sequential processing with rate limiting
-
-#### Infrastructure Layer
-
-**`adapters/description-generators/groq-generator.ts`**
-
-Concrete implementation using Groq SDK (Llama 3.3 70B):
-
-```typescript
-export class GroqDescriptionGenerator implements IDescriptionGenerator {
-  private client: Groq;
-  private rateLimiter: RateLimiter;
-
-  constructor(apiKey: string, requestsPerMinute: number = 30) {
-    this.client = new Groq({ apiKey });
-    this.rateLimiter = new RateLimiter(requestsPerMinute);
-  }
-
-  async generateDescription(page: PageMetadata): Promise<string> {
-    await this.rateLimiter.waitForToken();
-
-    const response = await this.client.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        {
-          role: "user",
-          content: `Generate a concise 15-word description for: ${page.title}`,
-        },
-      ],
-      max_tokens: 50,
-    });
-
-    return response.choices[0].message.content;
-  }
-}
-```
-
-**Features**:
-
-- Rate limiting (30 RPM for free tier)
-- Token bucket algorithm for smooth rate distribution
-- Error handling with meaningful messages
-- Generates concise 15-word summaries per page
-- Creates 2-3 sentence business summaries for homepages
-
-**`adapters/description-generators/heuristic-generator.ts`**
-
-Fallback generator using rule-based heuristics:
-
-```typescript
-export class HeuristicDescriptionGenerator implements IDescriptionGenerator {
-  generateDescription(page: PageMetadata): Promise<string> {
-    // Priority order:
-    // 1. og:description meta tag
-    // 2. meta description tag
-    // 3. URL pattern matching:
-    //    - /docs/* → "Documentation for {topic}"
-    //    - /blog/* → "Blog post: {title}"
-    //    - /api/* → "API reference for {topic}"
-    // 4. Page title as last resort
-  }
-}
-```
-
-**When used**:
-
-- No API key configured
-- Primary generator fails
-- Development/testing without API costs
-
-**`adapters/description-generators/generator-factory.ts`**
-
-Factory for creating generators based on configuration:
-
-```typescript
-export class DescriptionGeneratorFactory {
-  static createPrimaryGenerator(): IDescriptionGenerator | null {
-    const apiKey = process.env.GROQ_API_KEY;
-    return apiKey ? new GroqDescriptionGenerator(apiKey, 30) : null;
-  }
-
-  static createFallbackGenerator(): IDescriptionGenerator {
-    return new HeuristicDescriptionGenerator();
-  }
-
-  static createGenerator(): IDescriptionGenerator {
-    return this.createPrimaryGenerator() || this.createFallbackGenerator();
-  }
-}
-```
-
-**Pattern**: Factory Pattern - centralizes generator creation logic.
-
-### Rate Limiting Strategy
-
-**Problem**: Groq free tier = 30 requests per minute (RPM)
-
-**Solution**: Token Bucket Algorithm
-
-```typescript
-export class RateLimiter {
-  private tokens: number;
-  private lastRefill: number;
-  private refillRate: number; // tokens per millisecond
-  private capacity: number;
-
-  constructor(requestsPerMinute: number, burstCapacity?: number) {
-    this.capacity = burstCapacity || requestsPerMinute;
-    this.tokens = this.capacity;
-    this.refillRate = requestsPerMinute / 60000; // RPM to tokens/ms
-    this.lastRefill = Date.now();
-  }
-
-  async waitForToken(): Promise<void> {
-    this.refill();
-
-    if (this.tokens < 1) {
-      const waitTime = (1 - this.tokens) / this.refillRate;
-      await this.sleep(waitTime);
-      this.refill();
-    }
-
-    this.tokens -= 1;
-  }
-}
-```
-
-**Benefits**:
-
-- Smooth rate distribution (not bursty)
-- No 429 rate limit errors
-- Automatic pacing
-- Allows small bursts within limit
-
-### Usage Example
-
-```typescript
-import { DescriptionService } from "@/lib/domain/services/description.service";
-import { DescriptionGeneratorFactory } from "@/lib/infrastructure/adapters/description-generators";
-
-// Create generators
-const primaryGenerator = DescriptionGeneratorFactory.createPrimaryGenerator();
-const fallbackGenerator = DescriptionGeneratorFactory.createFallbackGenerator();
-
-// Initialize service
-const descriptionService = new DescriptionService(
-  primaryGenerator || fallbackGenerator,
-  fallbackGenerator
-);
-
-// Generate descriptions
-const summary = await descriptionService.generateBusinessSummary(homepage);
-const descriptions = await descriptionService.generateDescriptions(pages);
-```
-
-### Design Principles Applied
-
-1. **Dependency Inversion**: Domain depends on abstractions (`IDescriptionGenerator`), not implementations (`GroqDescriptionGenerator`)
-
-2. **Open/Closed**: Easy to add new generators (OpenAI, Anthropic, etc.) without modifying existing code
-
-3. **Single Responsibility**:
-   - `GroqDescriptionGenerator`: Groq API integration only
-   - `RateLimiter`: Rate limiting only
-   - `DescriptionService`: Orchestration only
-   - `DescriptionGeneratorFactory`: Generator creation only
-
-4. **Testability**: Mock the interface for unit tests:
-   ```typescript
-   class MockDescriptionGenerator implements IDescriptionGenerator {
-     async generateDescription() {
-       return "test description";
-     }
-     async generateBusinessSummary() {
-       return "test summary";
-     }
-     isAvailable() {
-       return true;
-     }
-   }
-   ```
-
-### Future Extensions
-
-#### Adding a New Generator (OpenAI Example)
-
-1. Implement interface:
-
-```typescript
-// src/lib/infrastructure/adapters/description-generators/openai-generator.ts
-export class OpenAIDescriptionGenerator implements IDescriptionGenerator {
-  private client: OpenAI;
-  private rateLimiter: RateLimiter;
-
-  constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
-    this.rateLimiter = new RateLimiter(60); // 60 RPM
-  }
-
-  async generateDescription(page: PageMetadata): Promise<string> {
-    await this.rateLimiter.waitForToken();
-    const response = await this.client.chat.completions.create({...});
-    return response.choices[0].message.content;
-  }
-}
-```
-
-2. Update factory:
-
-```typescript
-static createPrimaryGenerator(): IDescriptionGenerator | null {
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) return new OpenAIDescriptionGenerator(openaiKey);
-
-  const groqKey = process.env.GROQ_API_KEY;
-  if (groqKey) return new GroqDescriptionGenerator(groqKey);
-
-  return null;
-}
-```
-
-#### Caching Layer
-
-```typescript
-export class CachedDescriptionService implements IDescriptionService {
-  private cache = new Map<string, string>();
-
-  async generateDescriptions(
-    pages: PageMetadata[]
-  ): Promise<Map<string, string>> {
-    // Check cache first, only generate for cache misses
-  }
 }
 ```
 
 ---
 
-## Generator
+## Data Flow
 
-**Location**: `src/lib/domain/generator/index.ts`
-
-**Responsibilities**:
-
-- Classify pages by URL patterns
-- Group pages into sections
-- Integrate AI descriptions for each page
-- Format according to llms.txt specification
-- Validate output
-
-**Classification Logic**:
-
-```typescript
-URL Pattern → Section
-────────────────────────
-/docs/*     → Documentation
-/api/*      → API Reference
-/guide/*    → Guides
-/tutorial/* → Tutorials
-/blog/*     → Blog
-/about/*    → About
-/           → Overview
-*           → Additional Resources
-```
-
-**Output Structure**:
+### Request Flow
 
 ```
-1. H1: Project Name (required)
-2. Blockquote: Summary (optional)
-3. Sections (H2):
-   - Overview
-   - Documentation
-   - Guides
-   - API Reference
-4. Optional Section (H2):
-   - Lower priority content
+POST /api/v1/llms-txt
+  ↓
+Validation (Zod schemas)
+  ↓
+GenerateLlmsTxt.execute()
+  ↓
+Crawler.crawl() → Pages
+  ↓
+ContentGeneratorFactory → AI services
+  ↓
+Formatter.generate() → llms.txt content
+  ↓
+Standardized API response
 ```
 
----
-
-## Complete Data Flow
-
-### End-to-End Request Flow
+### AI Enhancement Flow
 
 ```
-1. User Input
-   └─→ URL + Options (preset: quick/thorough)
-
-2. Frontend Validation
-   └─→ Basic URL format check
-
-3. API Request
-   └─→ POST /api/generate
-
-4. Backend Validation
-   ├─→ Zod schema validation
-   └─→ SSRF protection check
-
-5. Use Case Execution
-   └─→ GenerateLlmsTxtUseCase.execute()
-
-6. Crawler Service Initialization
-   ├─→ Build config with presets
-   └─→ Create CrawlerService instance
-
-7. Sitemap Discovery
-   ├─→ Try /sitemap.xml
-   ├─→ Try /sitemap_index.xml
-   └─→ Parse robots.txt for sitemap
-
-8. Crawling Phase
-   ├─→ If sitemap: Extract URLs
-   │   └─→ Sort by priority
-   └─→ If no sitemap OR insufficient: BFS from homepage
-
-9. Page Processing (per URL)
-   ├─→ Fetch HTML
-   ├─→ Check robots meta tag
-   ├─→ Extract metadata
-   │   ├─→ Title
-   │   ├─→ Description
-   │   └─→ Internal links
-   └─→ Add links to queue
-
-10. Description Generation Phase
-    ├─→ Initialize DescriptionService with adapters
-    │   ├─→ Primary: GroqDescriptionGenerator (if GROQ_API_KEY)
-    │   └─→ Fallback: HeuristicDescriptionGenerator
-    ├─→ Generate homepage business summary
-    ├─→ Generate descriptions for all pages
-    │   ├─→ Process sequentially (respects 30 RPM rate limit)
-    │   ├─→ Token bucket rate limiter (2 sec/request)
-    │   └─→ Automatic fallback on adapter failures
-    └─→ Map descriptions to page URLs
-
-11. Generation Phase
-    ├─→ Classify all pages
-    ├─→ Group by section
-    ├─→ Attach generated descriptions
-    ├─→ Sort by depth and title
-    └─→ Format as Markdown
-
-12. Response
-    └─→ Return llms.txt content + stats
-
-13. Client Display
-    ├─→ Show preview
-    ├─→ Enable editing
-    └─→ Provide download/copy
+Page data
+  ↓
+ContentGeneratorFactory
+  ↓
+Try Groq (if API key available)
+  ↓ (on failure or unavailable)
+Fall back to Heuristic
+  ↓
+Enhanced content
 ```
-
----
-
-## Performance Considerations
-
-### Optimization Strategies
-
-1. **Sitemap-First Approach**
-   - 10-100x faster than crawling
-   - Avoids redundant requests
-   - Gets high-priority pages first
-   - Falls back to BFS if needed
-
-2. **Concurrent Processing**
-   - Default: 5 parallel requests
-   - Prevents server overwhelming
-   - Reduces total crawl time
-   - Configurable concurrency
-
-3. **Smart Deduplication**
-   - URL normalization before checking
-   - Removes tracking parameters
-   - Prevents duplicate fetches
-
-4. **Depth Limiting**
-   - Prevents exponential growth
-   - Focuses on important pages
-   - Typical depth: 2-3 levels
-
-5. **Timeout Protection**
-   - Per-request: 10s default
-   - Total crawl: 60s max
-   - Prevents hanging requests
-
-6. **AI Rate Limiting**
-   - Token bucket algorithm
-   - 30 RPM for Groq free tier
-   - Sequential processing with automatic pacing
-
-### Scaling Considerations
-
-**Current Limits**:
-
-- Max pages: 200
-- Max depth: 5
-- Request timeout: 30s
-- Total timeout: 60s
-- AI: 30 RPM (Groq free tier)
-
-**For Larger Scale**:
-
-- Add Redis for caching crawled results
-- Implement job queue (Bull/BullMQ)
-- Use worker threads for parsing
-- Add rate limiting per IP
-- Consider Puppeteer for JS-heavy sites
-- Implement batch AI generation with retries
-
----
-
-## Security Architecture
-
-### SSRF Prevention
-
-**Defense Layers**:
-
-1. URL scheme validation (HTTP/HTTPS only)
-2. Hostname blocklist
-3. IP range blocklist
-4. .local domain blocking
-
-**Blocked Hosts**:
-
-```typescript
-- localhost, 127.0.0.1, 0.0.0.0
-- ::1 (IPv6 localhost)
-- 169.254.169.254 (AWS metadata)
-- metadata.google.internal (GCP metadata)
-```
-
-**Blocked Networks**:
-
-```typescript
-- 10.0.0.0/8 (Private)
-- 172.16.0.0/12 (Private)
-- 192.168.0.0/16 (Private)
-- *.local domains
-```
-
-### Input Validation
-
-**Zod Schemas**:
-
-- Runtime type checking
-- Constraint enforcement
-- Detailed error messages
-- Type inference for TypeScript
-
-### Error Handling
-
-**Strategy**:
-
-- Never expose internal errors to users
-- Log detailed errors server-side
-- Return generic error messages
-- Include correlation IDs for debugging
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests (`tests/unit/`)
+### Unit Tests
 
-**Coverage**:
+- Domain logic (URL normalization, boundaries)
+- AI services (mocked)
+- Validation schemas
+- SSRF protection
 
-- URL utilities (normalization, classification)
-- Validation schemas (SSRF, limits)
-- Generator (formatting, validation)
-- Domain services (mocked dependencies)
+### Integration Tests
 
-**Framework**: Vitest
+- Full generation flow
+- Crawling with real HTTP
+- Formatter with AI services
 
-**Example**:
+### Test Coverage
+
+```bash
+npm test              # Run all tests
+npm run test:coverage # Coverage report
+```
+
+---
+
+## Key Files
+
+| File                                                                                               | Purpose            | Lines |
+| -------------------------------------------------------------------------------------------------- | ------------------ | ----- |
+| [llms-txt/generate.ts](src/lib/llms-txt/generate.ts)                                               | Main orchestrator  | ~130  |
+| [llms-txt/formatter.ts](src/lib/llms-txt/formatter.ts)                                             | Formats output     | ~200  |
+| [crawling/crawler.ts](src/lib/crawling/crawler.ts)                                                 | Crawl orchestrator | ~250  |
+| [ai-enhancement/content-generator-factory.ts](src/lib/ai-enhancement/content-generator-factory.ts) | Creates AI chains  | ~150  |
+| [api/schemas.ts](src/lib/api/schemas.ts)                                                           | Zod validation     | ~100  |
+
+---
+
+## Adding New Features
+
+### Example: Adding Sitemap Generation Feature
+
+1. Create feature folder:
+
+```
+lib/sitemap-generation/
+├── generate.ts        # Main orchestrator
+├── builder.ts         # Builds sitemap XML
+├── validator.ts       # Validates sitemap spec
+└── index.ts
+```
+
+2. Add API endpoint:
 
 ```typescript
-describe("DescriptionService", () => {
-  it("falls back to heuristic when primary fails", async () => {
-    const mockPrimary = {
-      generateDescription: vi.fn().mockRejectedValue(new Error("API error")),
-      generateBusinessSummary: vi.fn(),
-      isAvailable: () => true,
-    };
-
-    const mockFallback = {
-      generateDescription: vi.fn().mockResolvedValue("fallback desc"),
-      generateBusinessSummary: vi.fn(),
-      isAvailable: () => true,
-    };
-
-    const service = new DescriptionService(mockPrimary, mockFallback);
-    const result = await service.generateDescriptions([mockPage]);
-
-    expect(mockFallback.generateDescription).toHaveBeenCalled();
-  });
-});
+// src/app/api/v1/sitemap/route.ts
+import { generateSitemapUseCase } from "@/lib/sitemap-generation";
 ```
 
-### Integration Tests (Future)
+3. Add DTOs:
 
-- API endpoint testing
-- Crawler end-to-end tests
-- Mock external requests
-- Test fallback scenarios
+```typescript
+// lib/api/dtos/sitemap.ts
+export interface GenerateSitemapRequest {}
+export interface GenerateSitemapResponse {}
+```
 
-### E2E Tests (Future)
-
-- Playwright for browser testing
-- Full user flow testing
-- Visual regression testing
+**No changes needed to:** crawling/, http/, types/ (already shared)
 
 ---
 
-## Deployment Architecture
+## Performance Considerations
 
-### Vercel (Recommended)
+### Concurrency
 
-```
-┌─────────────────┐
-│  Vercel Edge    │
-│   (CDN/WAF)     │
-└────────┬────────┘
-         │
-┌────────↓────────┐
-│  Serverless     │
-│  Functions      │
-│  (API Routes)   │
-└─────────────────┘
-```
+- Configurable concurrent requests (default: 5)
+- Token bucket rate limiting for AI APIs (30 req/min)
 
-**Benefits**:
+### Caching
 
-- Auto-scaling
-- Global CDN
-- Zero-config deployment
-- Automatic HTTPS
-- Environment variables for API keys
+- HTTP responses cached per request
+- Robots.txt cached per domain
+- Sitemap parsed once per request
 
-**Environment Variables**:
+### Timeouts
 
-- `GROQ_API_KEY` - Required for AI descriptions
+- Per-request timeout: 10s (configurable)
+- AI API timeout: 30s
+- Total request timeout: 2 minutes
 
-### Docker (Self-Hosted)
+---
 
-```
-┌─────────────────┐
-│  Nginx/Caddy    │
-│  (Reverse Proxy)│
-└────────┬────────┘
-         │
-┌────────↓────────┐
-│  Docker         │
-│  Container      │
-│  (Node.js)      │
-└─────────────────┘
+## Security
+
+### SSRF Protection
+
+- Blocks private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+- Blocks localhost (127.0.0.0/8, ::1)
+- Blocks metadata endpoints (169.254.169.254)
+
+### Input Validation
+
+- Zod schemas for all API inputs
+- URL format validation
+- Pattern validation (regex)
+
+### Rate Limiting
+
+- AI API: 30 requests/minute (token bucket)
+- Future: Per-IP rate limiting
+
+---
+
+## Environment Variables
+
+```bash
+GROQ_API_KEY=xxx         # Optional: Groq API for AI enhancement
+NODE_ENV=development     # Environment
 ```
 
 ---
 
-## Technology Decisions
+## API Documentation
 
-### Why Next.js?
+### POST /api/v1/llms-txt
 
-- Full-stack in one framework
-- Excellent TypeScript support
-- Built-in API routes
-- Easy deployment to Vercel
-- Great developer experience
+**Request:**
 
-### Why Cheerio over Puppeteer?
+```json
+{
+  "url": "https://example.com",
+  "preset": "quick",
+  "maxPages": 50,
+  "maxDepth": 3,
+  "timeout": 10000,
+  "concurrency": 5
+}
+```
 
-- Much faster (no browser overhead)
-- Lower memory usage
-- Sufficient for static HTML
-- Can add Puppeteer later for JS-heavy sites
+**Response:**
 
-### Why Zod?
-
-- Runtime validation
-- Type inference for TypeScript
-- Excellent error messages
-- Composable schemas
-
-### Why Vitest?
-
-- Fast (ESM native)
-- Compatible with Jest API
-- Great DX with UI mode
-- Native TypeScript support
-
-### Why Groq?
-
-- **Free tier**: 14,400 requests/day (Llama 3.3 70B)
-- **No credit card** required for signup
-- **Blazing fast**: ~100 tokens/sec inference speed
-- **High quality**: State-of-the-art open-source models (Llama 3.3 70B)
-- **Simple API**: Compatible with OpenAI SDK
-- **Cost effective**: $0.59/million tokens vs Claude $8-15/million
-- **Easy to extend**: Clean architecture allows swapping to other providers
-
-### Why Clean Architecture?
-
-- **Testability**: Easy to test business logic in isolation
-- **Flexibility**: Swap infrastructure (Groq → OpenAI) without changing domain
-- **Maintainability**: Clear boundaries between layers
-- **Scalability**: Easy to add new features
-- **Reusability**: Domain logic works with API, CLI, or workers
+```json
+{
+  "success": true,
+  "data": {
+    "content": "# Example\n\n> Description\n\n## Section\n...",
+    "stats": {
+      "pagesFound": 42,
+      "url": "https://example.com"
+    }
+  }
+}
+```
 
 ---
 
-## Monitoring and Observability
+## Summary
 
-### Recommended Tools
+**Architecture:** Next.js standard patterns with feature folders
+**Organization:** Flat, practical, easy to navigate
+**Naming:** Simple, no redundant suffixes
+**AI Strategy:** AI-first with automatic fallback chains
+**Tests:** 98/98 passing
 
-**Error Tracking**:
-
-- Sentry for error monitoring
-- Track failed crawls
-- Monitor API errors
-- Alert on rate limit issues
-
-**Analytics**:
-
-- Vercel Analytics (built-in)
-- Google Analytics (optional)
-- Custom event tracking
-- Track generator fallback usage
-
-**Logging**:
-
-- Structured logging with Pino
-- Log levels: error, warn, info, debug
-- Include correlation IDs
-- Track AI API usage
-
-**Metrics to Monitor**:
-
-- Crawl success rate
-- Average pages per crawl
-- Sitemap vs BFS usage ratio
-- AI generation success rate
-- Fallback usage frequency
-- API response times
-
----
-
-## Future Enhancements
-
-### Potential Improvements
-
-1. **Caching Layer**
-   - Cache generated llms.txt per domain
-   - TTL: 24 hours
-   - Reduce redundant crawls
-   - Redis-backed caching
-
-2. **Queue System**
-   - Background job processing
-   - Handle larger sites
-   - Progress websocket updates
-   - Bull/BullMQ integration
-
-3. **Authentication**
-   - Optional: Custom headers
-   - OAuth for private sites
-   - API key for power users
-   - Rate limiting per user
-
-4. **Advanced Features**
-   - Scheduled regeneration
-   - Diff detection
-   - Historical versions
-   - Batch processing
-   - Custom prompts for AI generation
-
-5. **Analytics**
-   - Track popular domains
-   - Monitor crawl success rates
-   - Performance metrics
-   - Cost tracking for AI usage
-
-6. **Multi-Provider AI**
-   - Support multiple AI providers simultaneously
-   - Intelligent load balancing
-   - Cost optimization
-   - Quality comparison
-
----
-
-## Conclusion
-
-This architecture balances simplicity with production-readiness through:
-
-- **Clean Architecture**: Clear separation between domain, infrastructure, and API layers
-- **Dependency Inversion**: Domain depends on interfaces, infrastructure implements them
-- **Secure**: SSRF protection, input validation, rate limiting
-- **Performant**: Sitemap-first crawling, concurrent processing, smart caching
-- **Reliable**: Automatic fallbacks, timeout protection, error handling
-- **Maintainable**: Layered structure, typed APIs, comprehensive tests
-- **Extensible**: Easy to add new AI providers, crawling strategies, or features
-- **Scalable**: Ready for Redis/queue additions without major refactoring
-
-The modular design allows for easy enhancements while maintaining code quality and testability.
+**Result:** Production-ready, maintainable, scalable Next.js application ✅

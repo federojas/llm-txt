@@ -10,9 +10,9 @@ llms.txt is a proposed standard for providing structured information about websi
 
 ## ✨ Features
 
-- **AI-Powered Descriptions**: Uses Groq (Llama 3.3 70B) to generate concise, high-quality page descriptions
+- **AI-Powered Content Generation**: Uses Groq (Llama 3.3 70B) to generate descriptions, discover sections, and clean titles
 - **Automated Crawling**: Intelligently crawls websites using sitemap.xml or BFS traversal
-- **Smart Classification**: Automatically categorizes pages (docs, API, guides, blog, etc.)
+- **Smart Section Discovery**: AI-powered categorization of pages into logical sections
 - **Language Filtering**: Detects and prefers English content, skips language variants
 - **SSRF Protection**: Built-in security to prevent Server-Side Request Forgery attacks
 - **Configurable Depth**: Choose between Quick (50 pages) or Thorough (150 pages) crawling
@@ -31,7 +31,7 @@ llms.txt is a proposed standard for providing structured information about websi
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/llm-txt.git
+git clone https://github.com/federojas/llms-txt.git
 cd llm-txt
 
 # Install dependencies
@@ -62,7 +62,7 @@ npm run dev
 
 ### Deploy to Vercel (Recommended)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR-USERNAME/llm-txt)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/federojas/llms-txt)
 
 Or manually:
 
@@ -130,7 +130,7 @@ npm run lint
 
 ## 📖 API Documentation
 
-### POST /api/generate
+### POST /api/v1/llms-txt
 
 Generate an llms.txt file for a given URL.
 
@@ -139,7 +139,7 @@ Generate an llms.txt file for a given URL.
 ```json
 {
   "url": "https://example.com",
-  "preset": "quick" // "quick" | "thorough"
+  "preset": "quick" // "quick" | "thorough" | "custom"
 }
 ```
 
@@ -148,15 +148,17 @@ Generate an llms.txt file for a given URL.
 ```json
 {
   "success": true,
-  "content": "# Example Site\n\n> Description...",
-  "stats": {
-    "pagesFound": 42,
-    "url": "https://example.com"
+  "data": {
+    "content": "# Example Site\n\n> Description...",
+    "stats": {
+      "pagesFound": 42,
+      "url": "https://example.com"
+    }
   }
 }
 ```
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md#api-layer) for full API documentation.
+See [ARCHITECTURE.md](./ARCHITECTURE.md#api-documentation) for full API documentation.
 
 ## 🏗️ Architecture
 
@@ -169,15 +171,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#api-layer) for full API documentation.
 - Zod for validation
 - Vitest for testing
 
-**Key Features:**
+**Architecture Highlights:**
 
-- Sitemap-first crawling strategy (10-100x faster)
-- BFS fallback for sites without sitemaps
-- SSRF protection (blocks localhost, private networks, cloud metadata)
-- Queue-based concurrent processing
-- Comprehensive test suite (39 unit tests)
+- **Feature-based organization** - Clean, flat structure following Next.js conventions
+- **AI-first with fallbacks** - Groq (Llama 3.3 70B) with automatic heuristic fallback using Chain of Responsibility pattern
+- **Sitemap-first crawling** - 10-100x faster than full site traversal
+- **BFS fallback** - For sites without sitemaps
+- **SSRF protection** - Blocks localhost, private networks, cloud metadata endpoints
+- **Concurrent processing** - Queue-based crawling with configurable concurrency
+- **Comprehensive testing** - 98 unit tests covering core functionality
 
-📚 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design, technology decisions, and scaling considerations.
+📚 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design, architecture decisions, and technical deep-dive.
 
 ## 🔒 Security
 
@@ -191,25 +195,38 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#api-layer) for full API documentation.
 
 ```
 llm-txt/
-├── app/
-│   ├── api/generate/       # API endpoint
-│   └── page.tsx            # Main UI
-├── components/             # React components
-├── lib/
-│   ├── crawler/            # Crawling engine
-│   ├── parser/             # HTML/sitemap parsing
-│   ├── generator/          # llms.txt generation
-│   ├── validation/         # Input validation + SSRF
-│   └── utils/              # Utilities
-├── tests/unit/             # Test suite
-└── types/                  # TypeScript definitions
+├── src/
+│   ├── app/
+│   │   ├── api/v1/llms-txt/    # API endpoint
+│   │   └── page.tsx            # Main UI
+│   ├── components/             # React components
+│   ├── lib/
+│   │   ├── llms-txt/           # Main feature (generate, format, validate)
+│   │   ├── ai-enhancement/     # AI + fallback strategies
+│   │   ├── crawling/           # Web crawling engine
+│   │   ├── http/               # HTTP client, sitemap, robots.txt
+│   │   ├── url/                # URL utilities
+│   │   ├── api/                # API layer (errors, DTOs, validation, SSRF)
+│   │   ├── types/              # TypeScript types
+│   │   └── config/             # Configuration
+│   └── tests/unit/             # Test suite
+└── ARCHITECTURE.md             # Detailed architecture documentation
 ```
 
-## 📸 Screenshots & Demo
+## 📸 Demo
 
-TODO add demo video
+TODO ADD DEMO VIDEO / SCREENSHOTS
 
 Try it live at [llm-txt-nine.vercel.app](https://llm-txt-nine.vercel.app/)
+
+**Demo workflow:**
+
+1. Enter a URL (e.g., `https://youtube.com` or `https://www.fastht.ml/`)
+2. Select preset (Quick for 50 pages, Thorough for 150 pages)
+3. Click "Generate llms.txt"
+4. Wait for crawling to complete (~30-90 seconds)
+5. Review the generated file
+6. Copy to clipboard or download
 
 ## 🔗 Resources
 

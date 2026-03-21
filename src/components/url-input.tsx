@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CrawlPreset, LanguageStrategy } from "@/lib/domain/models";
+import { CrawlPreset, LanguageStrategy } from "@/lib/types";
 
 interface UrlInputProps {
   onGenerate: (

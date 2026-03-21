@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
+import { Formatter, validateLlmsTxt } from "@/lib/llms-txt";
+import { PageMetadata } from "@/lib/types";
 import {
-  GeneratorService,
-  validateLlmsTxt,
-} from "@/lib/domain/services/generator.service";
-import { PageMetadata } from "@/lib/domain/models";
-import { IDescriptionService } from "@/lib/domain/interfaces";
+  IDescriptionGenerator,
+  ISectionDiscoveryService,
+  ITitleCleaningService,
+} from "@/lib/ai-enhancement/types";
 
 describe("LLMs.txt Generator", () => {
   const mockPages: PageMetadata[] = [
@@ -31,18 +32,16 @@ describe("LLMs.txt Generator", () => {
     },
   ];
 
-  // Mock description service
-  const mockDescriptionService: IDescriptionService = {
+  // Mock description generator
+  const mockDescriptionGenerator: IDescriptionGenerator = {
     isAvailable: () => true,
     generateDescription: async (page: PageMetadata) => page.description || "",
     generateBusinessSummary: async () => "A comprehensive example site",
-    generateDescriptions: async (pages: PageMetadata[]) => {
-      const descriptions = new Map<string, string>();
-      for (const page of pages) {
-        descriptions.set(page.url, page.description || "");
-      }
-      return descriptions;
-    },
+  };
+
+  // Mock section discovery service
+  const mockSectionDiscovery: ISectionDiscoveryService = {
+    isAvailable: () => true,
     discoverSections: async (pages: PageMetadata[]) => {
       // Mock section discovery: group by URL patterns
       return [
@@ -60,48 +59,77 @@ describe("LLMs.txt Generator", () => {
         },
       ];
     },
+  };
+
+  // Mock title cleaning service
+  const mockTitleCleaning: ITitleCleaningService = {
+    isAvailable: () => true,
     cleanTitles: async (titles: string[]) => {
       // Mock title cleaning: just return titles as-is for tests
       return titles;
     },
   };
 
-  describe("GeneratorService", () => {
+  describe("Formatter", () => {
     it("should generate valid llms.txt content", async () => {
-      const service = new GeneratorService(mockDescriptionService);
+      const service = new Formatter(
+        mockDescriptionGenerator,
+        mockSectionDiscovery,
+        mockTitleCleaning
+      );
       const result = await service.generate(mockPages);
       expect(result).toContain("# Example Site");
       expect(result).toContain(">");
     });
 
     it("should include all pages", async () => {
-      const service = new GeneratorService(mockDescriptionService);
+      const service = new Formatter(
+        mockDescriptionGenerator,
+        mockSectionDiscovery,
+        mockTitleCleaning
+      );
       const result = await service.generate(mockPages);
       expect(result).toContain("[Documentation](https://example.com/docs)");
       expect(result).toContain("[API Reference](https://example.com/api)");
     });
 
     it("should organize pages into sections", async () => {
-      const service = new GeneratorService(mockDescriptionService);
+      const service = new Formatter(
+        mockDescriptionGenerator,
+        mockSectionDiscovery,
+        mockTitleCleaning
+      );
       const result = await service.generate(mockPages);
       expect(result).toContain("## Documentation");
       expect(result).toContain("## API Reference");
     });
 
     it("should include descriptions when available", async () => {
-      const service = new GeneratorService(mockDescriptionService);
+      const service = new Formatter(
+        mockDescriptionGenerator,
+        mockSectionDiscovery,
+        mockTitleCleaning
+      );
       const result = await service.generate(mockPages);
       expect(result).toContain("Comprehensive documentation");
       expect(result).toContain("API documentation");
     });
 
     it("should throw error when no pages provided", async () => {
-      const service = new GeneratorService(mockDescriptionService);
+      const service = new Formatter(
+        mockDescriptionGenerator,
+        mockSectionDiscovery,
+        mockTitleCleaning
+      );
       await expect(service.generate([])).rejects.toThrow();
     });
 
     it("should use custom project name if provided", async () => {
-      const service = new GeneratorService(mockDescriptionService);
+      const service = new Formatter(
+        mockDescriptionGenerator,
+        mockSectionDiscovery,
+        mockTitleCleaning
+      );
       const result = await service.generate(mockPages, "Custom Project");
       expect(result).toContain("# Custom Project");
     });

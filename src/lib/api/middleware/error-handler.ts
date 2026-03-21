@@ -4,8 +4,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { ApiError } from "../errors";
-import { errorResponse } from "../responses";
+import { ApiError } from "@/lib/api";
+import { errorResponse } from "@/lib/api";
 import { ZodError } from "zod";
 
 /**

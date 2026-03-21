@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isSSRFSafe, getSSRFBlockReason } from "@/lib/api/security";
+import { isSSRFSafe, getSSRFBlockReason } from "@/lib/api";
 
 describe("SSRF Protection", () => {
   describe("isSSRFSafe", () => {

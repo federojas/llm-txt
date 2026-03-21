@@ -1,15 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl } from "@/lib/domain/logic/url-normalization";
+import { normalizeUrl } from "@/lib/url/normalization";
 import {
   toAbsoluteUrl,
   matchesPattern,
   extractDomain,
-} from "@/lib/infrastructure/utilities/url-helpers";
-import {
-  isInternalUrl,
-  getUrlDepth,
-  classifyUrl,
-} from "@/lib/domain/logic/url-classification";
+} from "@/lib/url/helpers";
+import { isInternalUrl, getUrlDepth } from "@/lib/crawling/boundaries";
 
 describe("URL Utilities", () => {
   describe("normalizeUrl", () => {
@@ -108,31 +104,6 @@ describe("URL Utilities", () => {
       expect(getUrlDepth("https://other.com/page", "https://example.com")).toBe(
         Infinity
       );
-    });
-  });
-
-  describe("classifyUrl", () => {
-    it("should classify documentation URLs", () => {
-      expect(classifyUrl("https://example.com/docs/guide")).toBe(
-        "documentation"
-      );
-    });
-
-    it("should classify API URLs", () => {
-      expect(classifyUrl("https://example.com/api/reference")).toBe("api");
-    });
-
-    it("should classify blog URLs", () => {
-      expect(classifyUrl("https://example.com/blog/post")).toBe("blog");
-    });
-
-    it("should classify homepage", () => {
-      expect(classifyUrl("https://example.com/")).toBe("homepage");
-      expect(classifyUrl("https://example.com")).toBe("homepage");
-    });
-
-    it("should classify unknown URLs as other", () => {
-      expect(classifyUrl("https://example.com/random")).toBe("other");
     });
   });
 });

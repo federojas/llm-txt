@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateLlmsTxtUseCase } from "@/lib/use-cases";
+import { generateLlmsTxtUseCase } from "@/lib";
 import { validateRequest, withErrorHandler, successResponse } from "@/lib/api";
-import { crawlOptionsSchema } from "@/lib/api/validation";
-import type { GenerateRequest } from "@/lib/api/dtos";
+import { crawlOptionsSchema } from "@/lib/api";
+import type { GenerateRequest } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // 60 seconds max

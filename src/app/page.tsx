@@ -4,7 +4,7 @@ import { useState } from "react";
 import { UrlInput } from "@/components/url-input";
 import { LoadingState } from "@/components/loading-state";
 import { ResultPreview } from "@/components/result-preview";
-import { CrawlPreset, LanguageStrategy } from "@/lib/domain/models";
+import { CrawlPreset, LanguageStrategy } from "@/lib/types";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);

@@ -1,11 +1,22 @@
 /**
- * API Layer - Central Exports
- * Provides convenient imports for all API-related utilities
+ * API Layer
+ * HTTP interface, validation, and error handling
  */
 
-export * from "./errors";
-export * from "./middleware";
-export * from "./responses";
+// DTOs
 export * from "./dtos";
-export * from "./validation";
-export * from "./security";
+
+// Errors
+export * from "./api-error";
+
+// Responses
+export * from "./api-response";
+
+// Validation
+export * from "./schemas";
+
+// Security
+export * from "./ssrf";
+
+// Middleware
+export * from "./middleware";

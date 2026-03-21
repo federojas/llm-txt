@@ -5,7 +5,7 @@
 
 import { NextRequest } from "next/server";
 import { z, ZodSchema } from "zod";
-import { ValidationError } from "../errors";
+import { ValidationError } from "@/lib/api";
 
 /**
  * Validates request body against a Zod schema
