@@ -6,7 +6,7 @@
 import { Inngest } from "inngest";
 
 export const inngest = new Inngest({
-  id: "llms-txt-generator",
+  id: "llm-txt",
   // In development with INNGEST_DEV=true, SDK will skip cloud API
   isDev: process.env.INNGEST_DEV === "true",
 });

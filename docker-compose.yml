@@ -34,6 +34,7 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       # Inngest Dev Server configuration
       INNGEST_DEV: "true"
+      INNGEST_DEV_SERVER_URL: http://inngest:8288
       INNGEST_EVENT_KEY: ""
       INNGEST_SIGNING_KEY: ""
     volumes:
@@ -62,7 +63,7 @@ services:
       - app
     networks:
       - llms-txt-network
-    command: npx inngest-cli@latest dev --no-discovery
+    command: npx inngest-cli@latest dev -u http://app:3000/api/inngest
 
 volumes:
   postgres_data:
