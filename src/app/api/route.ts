@@ -11,6 +11,11 @@ export async function GET() {
     description: "Generate llms.txt documentation for any website",
     documentation: "https://github.com/your-repo/README.md",
     endpoints: {
+      health: {
+        path: "/api/health",
+        methods: ["GET"],
+        description: "Health check for monitoring and deployment verification",
+      },
       v1: {
         baseUrl: "/api/v1",
         resources: {
@@ -18,6 +23,11 @@ export async function GET() {
             path: "/api/v1/llms-txt",
             methods: ["POST"],
             description: "Generate llms.txt for a given URL",
+          },
+          jobs: {
+            path: "/api/v1/jobs/:id",
+            methods: ["GET"],
+            description: "Get job status and result",
           },
         },
       },
