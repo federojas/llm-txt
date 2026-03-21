@@ -65,80 +65,36 @@ docker-compose down
 4. **Review**: Preview the generated file and edit if needed
 5. **Download**: Click "Download" or "Copy" to get your llms.txt file
 
+## 🌐 Access URLs
+
+**Local Development:**
+
+- Frontend: http://localhost:3000
+- Inngest UI: http://localhost:8288
+- PostgreSQL: localhost:5432
+
+**Production:**
+
+- Live app: https://llm-txt-nine.vercel.app/
+- Preview deployments: `https://llm-txt-[branch]-[user].vercel.app/`
+
 ## 📦 Deployment
 
 ### Deploy to Vercel (Recommended)
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/federojas/llms-txt)
 
-**Manual Deployment Steps:**
+**Environment Setup:**
 
-#### 1. Set Up PostgreSQL Database
+- **Preview**: Isolated Neon database branches for feature testing (safe to test migrations)
+- **Production**: Main Neon database branch with production data
 
-1. Go to your [Vercel Dashboard](https://vercel.com/dashboard)
-2. Navigate to **Storage** tab
-3. Click **Create Database** → Select **Postgres**
-4. Name your database (e.g., `llms-txt-db`)
-5. Click **Create**
-6. Vercel automatically sets `DATABASE_URL` environment variable
+**Required Environment Variables:**
 
-#### 2. Set Up Inngest
-
-1. Sign up at [inngest.com](https://www.inngest.com/) (free tier available)
-2. Create a new app in Inngest dashboard
-3. Get your API keys from **Settings**:
-   - **Event Key** (starts with `evt_...`)
-   - **Signing Key** (starts with `signkey_...`)
-
-#### 3. Configure Environment Variables
-
-In Vercel project settings → **Environment Variables**, add:
-
-```bash
-GROQ_API_KEY=your_groq_api_key_here
-INNGEST_EVENT_KEY=evt_your_event_key_here
-INNGEST_SIGNING_KEY=signkey_your_signing_key_here
-# DATABASE_URL is auto-set by Vercel Postgres
-```
-
-#### 4. Deploy Your App
-
-1. Push your code to GitHub
-2. In Vercel, click **Import** and select your repository
-3. Vercel will automatically:
-   - Install dependencies
-   - Run `prisma generate` (from build script)
-   - Build Next.js app
-   - Deploy to production
-
-#### 5. Register Webhook with Inngest
-
-After deployment:
-
-1. Go to your **Inngest Dashboard** → Your App
-2. Click **"Sync App"** or **"Register Functions"**
-3. Enter webhook URL: `https://your-app.vercel.app/api/inngest`
-4. Inngest will verify and register your `process-crawl` function
-
-**Verification:**
-
-- Visit your deployed app URL
-- Test job creation - it should complete successfully
-- Check **Inngest Dashboard** → **Functions** → View execution logs
-
-### Docker Deployment
-
-```bash
-# Set your Groq API key
-export GROQ_API_KEY=your_key_here
-
-# Using Docker Compose
-docker-compose up -d
-
-# Or using Docker directly
-docker build -t llms-txt-generator .
-docker run -p 3000:3000 -e GROQ_API_KEY=$GROQ_API_KEY llms-txt-generator
-```
+- `GROQ_API_KEY` - Get from https://console.groq.com/keys
+- `INNGEST_EVENT_KEY` - Get from https://www.inngest.com/ dashboard
+- `INNGEST_SIGNING_KEY` - Get from https://www.inngest.com/ dashboard
+- `DATABASE_URL` - Auto-set by Neon integration
 
 ## 🤖 AI-Powered Descriptions
 
