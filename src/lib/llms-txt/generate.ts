@@ -6,7 +6,7 @@
 import { Crawler, LanguageDetector, AdBlocker } from "@/lib/crawling";
 import { Formatter } from "./formatter";
 import { ContentGeneratorFactory } from "@/lib/ai-enhancement";
-import { getPresetMaxPages, getPresetMaxDepth } from "@/lib/config";
+import { DEFAULT_MAX_PAGES, DEFAULT_MAX_DEPTH } from "@/lib/config";
 import { NotFoundError, InternalServerError } from "@/lib/api";
 import { CrawlConfig, PageMetadata } from "@/lib/types";
 import { GenerateRequest, GenerateResponseData } from "@/lib/api";
@@ -58,12 +58,13 @@ export class GenerateLlmsTxt {
 
   /**
    * Builds crawl configuration from request options
+   * Uses defaults optimized for 60-90s execution: 50 pages, depth 3
    */
   private buildConfig(request: GenerateRequest): CrawlConfig {
     return {
       url: request.url,
-      maxPages: request.maxPages ?? getPresetMaxPages(request.preset),
-      maxDepth: request.maxDepth ?? getPresetMaxDepth(request.preset),
+      maxPages: request.maxPages ?? DEFAULT_MAX_PAGES,
+      maxDepth: request.maxDepth ?? DEFAULT_MAX_DEPTH,
       timeout: request.timeout ?? 10000,
       concurrency: request.concurrency ?? 5,
       includePatterns: request.includePatterns,

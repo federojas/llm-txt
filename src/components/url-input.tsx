@@ -1,23 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { CrawlPreset, LanguageStrategy } from "@/lib/types";
+import { LanguageStrategy } from "@/lib/types";
 
 interface UrlInputProps {
-  onGenerate: (
-    url: string,
-    preset: CrawlPreset,
-    languageStrategy: LanguageStrategy
-  ) => void;
+  onGenerate: (url: string, languageStrategy: LanguageStrategy) => void;
   isLoading: boolean;
 }
 
 export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
   const [url, setUrl] = useState("");
-  const [preset, setPreset] = useState<CrawlPreset>("quick");
   const [languageStrategy, setLanguageStrategy] =
     useState<LanguageStrategy>("prefer-english");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -40,7 +34,7 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
 
     try {
       new URL(processedUrl);
-      onGenerate(processedUrl, preset, languageStrategy);
+      onGenerate(processedUrl, languageStrategy);
     } catch {
       setError("Please enter a valid URL");
     }
@@ -103,42 +97,6 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
               : "⚠️ Accepts whatever language the server provides. May result in mixed languages for geo-aware sites like YouTube."}
           </p>
         </div>
-
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="text-sm text-blue-600 hover:text-blue-700"
-          >
-            {showAdvanced ? "Hide" : "Show"} advanced options
-          </button>
-        </div>
-
-        {showAdvanced && (
-          <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <div>
-              <label
-                htmlFor="preset"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Crawl Preset
-              </label>
-              <select
-                id="preset"
-                value={preset}
-                onChange={(e) => setPreset(e.target.value as CrawlPreset)}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isLoading}
-              >
-                <option value="quick">Quick (50 pages, depth 3)</option>
-                <option value="thorough">Thorough (150 pages, depth 4)</option>
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Choose how many pages to crawl and how deep to go
-              </p>
-            </div>
-          </div>
-        )}
 
         <button
           type="submit"

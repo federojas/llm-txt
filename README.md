@@ -60,10 +60,16 @@ docker-compose down
 ### Using the Tool
 
 1. **Enter a URL**: Input any public website URL (e.g., `https://nextjs.org`)
-2. **Choose preset**: Select "Quick" (50 pages) or "Thorough" (150 pages)
-3. **Generate**: Click "Generate llms.txt" and wait for crawling to complete
+2. **Choose language**: Select "Prefer English" or "Page language"
+3. **Generate**: Click "Generate llms.txt" and wait for crawling to complete (~60-90s)
 4. **Review**: Preview the generated file and edit if needed
 5. **Download**: Click "Download" or "Copy" to get your llms.txt file
+
+**Default Configuration:**
+
+- Crawls up to 50 pages (optimal balance of coverage and speed)
+- Depth of 3 levels (captures main sections)
+- Typical completion time: 60-90 seconds
 
 ## 🌐 Access URLs
 
@@ -138,15 +144,16 @@ npm run lint
 The API uses an asynchronous job pattern with PostgreSQL persistence and background processing:
 
 1. **Create Job** - POST returns immediately with job ID (202 Accepted)
-2. **Poll Status** - Client polls with exponential backoff (2s → 5s → 10s)
+2. **Poll Status** - Client polls with exponential backoff (5s → 10s → 15s)
 3. **Get Result** - Job completes with content or error
 
 **Polling Strategy (Exponential Backoff):**
 
-- **First 10s**: Poll every 2 seconds (5 attempts)
-- **Next 50s**: Poll every 5 seconds (10 attempts)
-- **After 60s**: Poll every 10 seconds
-- Optimizes for perceived speed early, efficiency later
+- **First 30s**: Poll every 5 seconds (6 attempts)
+- **Next 2min**: Poll every 10 seconds (12 attempts)
+- **After 2.5min**: Poll every 15 seconds
+- **Timeout**: 5 minutes (28 attempts) - prevents infinite polling if job hangs
+- Industry standard for 60-90s jobs: balances responsiveness with efficiency
 
 ### POST /api/v1/llms-txt
 
@@ -157,10 +164,14 @@ Create a new crawl job.
 ```json
 {
   "url": "https://example.com",
-  "preset": "quick", // "quick" | "thorough" | "custom"
-  "languageStrategy": "prefer-english" // optional
+  "languageStrategy": "prefer-english" // optional: "prefer-english" | "page-language"
 }
 ```
+
+**Default Configuration:**
+
+- `maxPages`: 50 (optimal for 60-90s execution)
+- `maxDepth`: 3 (captures main sections)
 
 **Response (202 Accepted):**
 
@@ -248,7 +259,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#api-documentation) for full API document
 - **Async job processing** - Non-blocking API with PostgreSQL persistence and Inngest workers
 - **Scalable by design** - Handles long-running crawls (60+ seconds) without blocking requests
 - **Step-based execution** - Checkpointed job steps with automatic retries (3 attempts)
-- **Exponential backoff polling** - Client polls with increasing intervals (2s → 5s → 10s) for optimal efficiency
+- **Exponential backoff polling** - Client polls with increasing intervals (5s → 10s → 15s) optimized for 60-90s jobs
 - **Feature-based organization** - Clean, flat structure following Next.js conventions
 - **AI-first with fallbacks** - Groq (Llama 3.3 70B) with automatic heuristic fallback using Chain of Responsibility pattern
 - **Sitemap-first crawling** - 10-100x faster than full site traversal

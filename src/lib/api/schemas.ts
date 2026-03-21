@@ -25,11 +25,6 @@ export const urlSchema = z
   .refine((url) => isSSRFSafe(url), "URL is not allowed (SSRF protection)");
 
 /**
- * Crawl preset schema
- */
-export const crawlPresetSchema = z.enum(["quick", "thorough", "custom"]);
-
-/**
  * Language strategy schema
  */
 export const languageStrategySchema = z.enum([
@@ -73,13 +68,12 @@ export const crawlConfigSchema = z.object({
 
 /**
  * Crawl options schema (all fields optional except URL)
- * Used for API requests where presets can override values
+ * Uses default values (50 pages, depth 3) for optimal 60-90s execution
  *
  * Uses `satisfies` to ensure schema matches GenerateRequest DTO type
  */
 export const crawlOptionsSchema = z.object({
   url: urlSchema,
-  preset: crawlPresetSchema.optional(),
   maxPages: z
     .number()
     .int()

@@ -21,7 +21,5 @@ export interface CrawlConfig {
 }
 
 export interface CrawlOptions extends Partial<CrawlConfig> {
-  preset?: CrawlPreset;
+  url: string;
 }
-
-export type CrawlPreset = "quick" | "thorough" | "custom";

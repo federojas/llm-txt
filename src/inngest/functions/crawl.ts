@@ -24,7 +24,6 @@ export const processCrawl = inngest.createFunction(
     const {
       jobId,
       url,
-      preset,
       maxPages,
       maxDepth,
       timeout,
@@ -48,7 +47,6 @@ export const processCrawl = inngest.createFunction(
       const result = await step.run("crawl-website", async () => {
         return generateLlmsTxtUseCase.execute({
           url,
-          preset,
           maxPages,
           maxDepth,
           timeout,

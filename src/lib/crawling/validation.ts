@@ -4,8 +4,6 @@
  * Can be used by API, CLI, workers, or any other consumer
  */
 
-import { CrawlPreset } from "@/lib/types";
-
 /**
  * Crawl configuration limits (business rules)
  */
@@ -84,11 +82,4 @@ export function isValidUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-/**
- * Validate crawl preset
- */
-export function isValidPreset(preset: string): preset is CrawlPreset {
-  return ["quick", "thorough", "custom"].includes(preset);
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { UrlInput } from "@/components/url-input";
 import { LoadingState } from "@/components/loading-state";
 import { ResultPreview } from "@/components/result-preview";
-import { CrawlPreset, LanguageStrategy } from "@/lib/types";
+import { LanguageStrategy } from "@/lib/types";
 
 type JobStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -29,11 +29,15 @@ export default function Home() {
   }, []);
 
   // Calculate polling interval with exponential backoff
+  // Optimized for 60-90s crawl jobs (industry standard for medium-duration tasks)
   const getPollingInterval = (attempts: number): number => {
-    if (attempts <= 5) return 2000; // First 10s: poll every 2s
-    if (attempts <= 15) return 5000; // Next 50s: poll every 5s
-    return 10000; // After 60s: poll every 10s
+    if (attempts <= 6) return 5000; // First 30s: poll every 5s
+    if (attempts <= 18) return 10000; // Next 2min: poll every 10s
+    return 15000; // After 2.5min: poll every 15s
   };
+
+  // Max polling attempts (5 min timeout: 6 @ 5s + 12 @ 10s + 10 @ 15s ≈ 300s)
+  const MAX_POLL_ATTEMPTS = 28;
 
   const pollJobStatus = async (statusUrl: string) => {
     try {
@@ -75,6 +79,21 @@ export default function Home() {
       } else {
         // Status is "pending" or "processing" - schedule next poll with backoff
         pollAttemptsRef.current += 1;
+
+        // Check if we've exceeded max polling attempts (5 min timeout)
+        if (pollAttemptsRef.current >= MAX_POLL_ATTEMPTS) {
+          if (pollingTimeoutRef.current) {
+            clearTimeout(pollingTimeoutRef.current);
+            pollingTimeoutRef.current = null;
+          }
+          pollAttemptsRef.current = 0;
+          setIsLoading(false);
+          setError(
+            "Job timed out after 5 minutes. The crawl may still be running in the background."
+          );
+          return;
+        }
+
         const interval = getPollingInterval(pollAttemptsRef.current);
         pollingTimeoutRef.current = setTimeout(() => {
           pollJobStatus(statusUrl);
@@ -95,7 +114,6 @@ export default function Home() {
 
   const handleGenerate = async (
     url: string,
-    preset: CrawlPreset,
     languageStrategy: LanguageStrategy
   ) => {
     setIsLoading(true);
@@ -111,7 +129,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url, preset, languageStrategy }),
+        body: JSON.stringify({ url, languageStrategy }),
       });
 
       const data = await response.json();

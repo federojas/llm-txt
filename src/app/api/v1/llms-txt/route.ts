@@ -32,7 +32,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const job = await db.crawlJob.create({
     data: {
       url: requestData.url,
-      preset: requestData.preset || "quick",
       status: JobStatus.PENDING,
     },
   });

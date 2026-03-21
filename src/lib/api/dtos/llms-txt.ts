@@ -6,12 +6,11 @@
  * Validation schemas in the validation layer must conform to these types.
  */
 
-import { CrawlPreset, LanguageStrategy } from "@/lib/types";
+import { LanguageStrategy } from "@/lib/types";
 
 // Request DTO
 export interface GenerateRequest {
   url: string;
-  preset?: CrawlPreset;
   maxPages?: number;
   maxDepth?: number;
   timeout?: number;

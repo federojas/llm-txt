@@ -7,7 +7,6 @@ import {
   validateTimeout,
   validateConcurrency,
   isValidUrl,
-  isValidPreset,
 } from "@/lib/crawling/validation";
 
 describe("Domain Validation Rules", () => {
@@ -125,20 +124,6 @@ describe("Domain Validation Rules", () => {
     it("should reject non-HTTP(S) protocols", () => {
       expect(isValidUrl("ftp://example.com")).toBe(false);
       expect(isValidUrl("file:///path")).toBe(false);
-    });
-  });
-
-  describe("isValidPreset", () => {
-    it("should accept valid presets", () => {
-      expect(isValidPreset("quick")).toBe(true);
-      expect(isValidPreset("thorough")).toBe(true);
-      expect(isValidPreset("custom")).toBe(true);
-    });
-
-    it("should reject invalid presets", () => {
-      expect(isValidPreset("invalid")).toBe(false);
-      expect(isValidPreset("")).toBe(false);
-      expect(isValidPreset("QUICK")).toBe(false);
     });
   });
 });
