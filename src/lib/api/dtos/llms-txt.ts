@@ -8,6 +8,26 @@
 
 import { LanguageStrategy } from "@/lib/types";
 
+/**
+ * Content generation mode
+ * - "ai": Use LLM for descriptions and summaries (default, ~51 API calls)
+ * - "metadata": Use HTML meta tags only (faster, no API cost)
+ *
+ * Note: Title cleaning always uses heuristics (language-agnostic, free)
+ */
+export type GenerationMode = "ai" | "metadata";
+
+/**
+ * Title cleanup configuration
+ */
+export interface TitleCleanup {
+  removePatterns?: string[]; // Regex patterns to remove from titles
+  replacements?: Array<{
+    pattern: string;
+    replacement: string;
+  }>;
+}
+
 // Request DTO
 export interface GenerateRequest {
   url: string;
@@ -18,6 +38,16 @@ export interface GenerateRequest {
   includePatterns?: string[];
   excludePatterns?: string[];
   languageStrategy?: LanguageStrategy;
+
+  // Manual overrides (Phase 1: User control)
+  projectName?: string; // Override auto-detected project name
+  projectDescription?: string; // Override AI-generated summary
+
+  // Generation mode (Phase 1: Performance/cost optimization)
+  generationMode?: GenerationMode;
+
+  // Title cleanup (Phase 1: Output quality)
+  titleCleanup?: TitleCleanup;
 }
 
 // Response DTOs

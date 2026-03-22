@@ -19,6 +19,7 @@ import {
   type DiscoveredSection,
 } from "./site-driven-sections";
 import { createQualityGateFilter } from "./quality-gates";
+import type { TitleCleanup } from "@/lib/api/dtos/llms-txt";
 
 /**
  * Formatter Service
@@ -37,18 +38,24 @@ export class Formatter {
    * @param projectName - Optional project name override
    * @param sitemapData - Optional sitemap metadata for link scoring
    * @param robotsDirectives - Optional robots.txt directives for filtering
+   * @param projectDescription - Optional project description override
+   * @param titleCleanup - Optional title cleanup rules (removePatterns, replacements)
    */
   async generate(
     pages: PageMetadata[],
     projectName?: string,
     sitemapData?: Map<string, SitemapUrl>,
-    robotsDirectives?: RobotsDirectives
+    robotsDirectives?: RobotsDirectives,
+    projectDescription?: string,
+    titleCleanup?: TitleCleanup
   ): Promise<string> {
     const output = await this.buildStructure(
       pages,
       projectName,
       sitemapData,
-      robotsDirectives
+      robotsDirectives,
+      projectDescription,
+      titleCleanup
     );
     return this.format(output);
   }
@@ -60,7 +67,9 @@ export class Formatter {
     pages: PageMetadata[],
     projectName?: string,
     sitemapData?: Map<string, SitemapUrl>,
-    robotsDirectives?: RobotsDirectives
+    robotsDirectives?: RobotsDirectives,
+    projectDescription?: string,
+    titleCleanup?: TitleCleanup
   ): Promise<LlmsTxtOutput> {
     if (pages.length === 0) {
       throw new Error("No pages to generate llms.txt from");
@@ -92,18 +101,34 @@ export class Formatter {
       );
     }
 
-    // Generate business summary for homepage
-    const summaryResponse =
-      await this.descriptionGenerator.generateBusinessSummary(homepage);
+    // Generate business summary for homepage (or use provided override)
+    let summary: string;
+    let details: string | undefined;
 
-    // Parse summary response (format: "summary|||details" or just "summary")
-    const { summary, details } = this.parseSummaryResponse(summaryResponse);
+    if (projectDescription) {
+      // Use provided description (skip AI call)
+      summary = projectDescription;
+      details = undefined;
+      console.log("[Manual Override] Using provided project description");
+    } else {
+      // Generate via AI
+      const summaryResponse =
+        await this.descriptionGenerator.generateBusinessSummary(homepage);
+      const parsed = this.parseSummaryResponse(summaryResponse);
+      summary = parsed.summary;
+      details = parsed.details;
+    }
 
     // Generate descriptions for filtered pages only (saves API calls)
     const aiDescriptions = await this.generateDescriptions(filteredPages);
 
-    // Clean all page titles (removes redundant suffixes like "About - Site - Site")
-    const allTitles = filteredPages.map((p) => p.title);
+    // Apply manual title cleanup first (inspired by llmstxt --replace-title)
+    let allTitles = filteredPages.map((p) => p.title);
+    if (titleCleanup) {
+      allTitles = this.applyTitleCleanup(allTitles, titleCleanup);
+    }
+
+    // Then clean with AI (removes redundant suffixes like "About - Site - Site")
     const cleanedTitles = await this.titleCleaning.cleanTitles(allTitles);
     const cleanedTitleMap = new Map<string, string>();
     filteredPages.forEach((page, idx) => {
@@ -223,6 +248,56 @@ export class Formatter {
       homepage.title.split("|")[0].split("-")[0].trim() || // Extract before " | " or " - "
       new URL(homepage.url).hostname.replace(/^www\./, "")
     );
+  }
+
+  /**
+   * Apply manual title cleanup patterns
+   * Inspired by llmstxt's --replace-title flag
+   *
+   * @param titles - Array of titles to clean
+   * @param cleanup - Cleanup rules (removePatterns, replacements)
+   * @returns Cleaned titles
+   *
+   * Example:
+   * removePatterns: ["\\| SiteName$", "- SiteName$"]
+   * "About | SiteName" → "About"
+   */
+  private applyTitleCleanup(titles: string[], cleanup: TitleCleanup): string[] {
+    return titles.map((title) => {
+      let cleaned = title;
+
+      // Apply removal patterns (e.g., remove "| SiteName" suffix)
+      if (cleanup.removePatterns) {
+        for (const pattern of cleanup.removePatterns) {
+          try {
+            const regex = new RegExp(pattern, "g");
+            cleaned = cleaned.replace(regex, "");
+          } catch (error) {
+            console.warn(
+              `[Title Cleanup] Invalid regex pattern: ${pattern}`,
+              error
+            );
+          }
+        }
+      }
+
+      // Apply replacements (e.g., "Docs" → "Documentation")
+      if (cleanup.replacements) {
+        for (const { pattern, replacement } of cleanup.replacements) {
+          try {
+            const regex = new RegExp(pattern, "g");
+            cleaned = cleaned.replace(regex, replacement);
+          } catch (error) {
+            console.warn(
+              `[Title Cleanup] Invalid regex pattern: ${pattern}`,
+              error
+            );
+          }
+        }
+      }
+
+      return cleaned.trim();
+    });
   }
 
   /**

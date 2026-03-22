@@ -10,6 +10,7 @@ import { fetchRobotsTxt, RobotsDirectives } from "@/lib/http/robots";
 import { ILanguageDetector } from "./language-detector";
 import { LanguageDetector } from "./language-detector";
 import { createHash } from "crypto";
+import picomatch from "picomatch";
 
 /**
  * Crawler Service (Application Layer)
@@ -36,6 +37,10 @@ export class Crawler {
   private lastRequestTime = 0; // Track last request for crawl delay
   private sitemapData = new Map<string, SitemapUrl>(); // URL -> sitemap metadata
 
+  // Pattern filtering (inspired by llmstxt tool)
+  private isExcluded?: (path: string) => boolean; // Exclude pattern matcher
+  private isIncluded?: (path: string) => boolean; // Include pattern matcher
+
   constructor(
     config: CrawlConfig,
     htmlParser?: IHtmlParser,
@@ -56,6 +61,21 @@ export class Crawler {
     // Default to "prefer-english" strategy if not specified
     this.config.languageStrategy = config.languageStrategy || "prefer-english";
     this.languageDetector = languageDetector || new LanguageDetector();
+
+    // Initialize pattern matchers (inspired by llmstxt tool)
+    // Use picomatch for glob pattern matching: "**/blog/**", "**/docs/**"
+    const excludePatterns = config.excludePatterns || [];
+    const includePatterns = config.includePatterns || [];
+
+    if (excludePatterns.length > 0) {
+      this.isExcluded = picomatch(excludePatterns);
+    }
+    if (includePatterns.length > 0) {
+      // Include patterns should also respect exclude patterns
+      this.isIncluded = picomatch(includePatterns, {
+        ignore: excludePatterns,
+      });
+    }
   }
 
   /**
@@ -197,6 +217,24 @@ export class Crawler {
   }
 
   /**
+   * Check if URL should be filtered by include/exclude patterns
+   * Inspired by llmstxt tool's pattern filtering
+   */
+  private shouldFilterUrl(url: string): boolean {
+    // Path excluded by pattern
+    if (this.isExcluded && this.isExcluded(url)) {
+      return true;
+    }
+
+    // Path effectively excluded (not in include list when includes are specified)
+    if (this.isIncluded && !this.isIncluded(url)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Fetch and parse a single page
    */
   private async fetchAndParse(
@@ -214,8 +252,14 @@ export class Crawler {
     if (this.visited.has(normalized)) return null;
     this.visited.add(normalized);
 
-    // Check robots.txt (skip homepage to ensure we always get at least one page)
+    // Check include/exclude patterns (skip homepage to ensure we always get at least one page)
     const isHomepage = normalizeUrl(url) === normalizeUrl(this.config.url);
+    if (!isHomepage && this.shouldFilterUrl(url)) {
+      console.log(`[Pattern Filter] Skipping URL: ${url}`);
+      return null;
+    }
+
+    // Check robots.txt (skip homepage to ensure we always get at least one page)
     if (!isHomepage && this.robotsDirectives) {
       if (!this.robotsDirectives.isAllowed(url)) {
         console.log(`[robots.txt] Skipping disallowed URL: ${url}`);

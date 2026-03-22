@@ -114,7 +114,14 @@ export default function Home() {
 
   const handleGenerate = async (
     url: string,
-    languageStrategy: LanguageStrategy
+    languageStrategy: LanguageStrategy,
+    options?: {
+      excludePatterns?: string[];
+      includePatterns?: string[];
+      generationMode?: "ai" | "metadata";
+      projectName?: string;
+      projectDescription?: string;
+    }
   ) => {
     setIsLoading(true);
     setError(null);
@@ -129,7 +136,11 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url, languageStrategy }),
+        body: JSON.stringify({
+          url,
+          languageStrategy,
+          ...options,
+        }),
       });
 
       const data = await response.json();

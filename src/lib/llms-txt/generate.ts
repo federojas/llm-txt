@@ -6,6 +6,7 @@
 import { Crawler, LanguageDetector, AdBlocker } from "@/lib/crawling";
 import { Formatter } from "./formatter";
 import { ContentGeneratorFactory } from "@/lib/ai-enhancement";
+import { HeuristicTitleCleaner } from "@/lib/ai-enhancement/heuristic/heuristic-title-cleaner";
 import { DEFAULT_MAX_PAGES, DEFAULT_MAX_DEPTH } from "@/lib/config";
 import { NotFoundError, InternalServerError } from "@/lib/api";
 import { CrawlConfig, PageMetadata } from "@/lib/types";
@@ -33,8 +34,8 @@ export class GenerateLlmsTxt {
         );
       }
 
-      // Generate llms.txt content (uses this.crawler for sitemapData)
-      const content = await this.generateContent(pages);
+      // Generate llms.txt content (passes request for user overrides)
+      const content = await this.generateContent(pages, request);
 
       // Return structured response
       return {
@@ -99,23 +100,45 @@ export class GenerateLlmsTxt {
   /**
    * Generates llms.txt content from crawled pages
    */
-  private async generateContent(pages: PageMetadata[]): Promise<string> {
-    // Create content generator factory with provider configuration
-    const factory = new ContentGeneratorFactory({
-      groq: {
-        apiKey: process.env.GROQ_API_KEY,
-        rateLimit: 30,
-      },
-      // Future providers can be added here:
-      // openai: { apiKey: process.env.OPENAI_API_KEY },
-      // anthropic: { apiKey: process.env.ANTHROPIC_API_KEY },
-    });
+  private async generateContent(
+    pages: PageMetadata[],
+    request: GenerateRequest
+  ): Promise<string> {
+    // Generation mode control (Phase 1: User control)
+    const generationMode = request.generationMode || "ai";
+    const useAI = generationMode === "ai";
 
-    // Create focused AI services with automatic fallback chains
-    // Each service tries Groq (if API key available) → falls back to heuristics
+    // Create factory with conditional API keys based on mode
+    // - "ai": Include Groq API key → tries AI first, falls back to heuristics
+    // - "metadata": Empty config → skips AI, uses heuristics only (HTML meta tags)
+    const factory = new ContentGeneratorFactory(
+      useAI
+        ? {
+            groq: {
+              apiKey: process.env.GROQ_API_KEY,
+              rateLimit: 30,
+            },
+            // Future providers can be added here:
+            // openai: { apiKey: process.env.OPENAI_API_KEY },
+            // anthropic: { apiKey: process.env.ANTHROPIC_API_KEY },
+          }
+        : {} // Empty config for metadata mode → heuristics only
+    );
+
+    // Create services using factory's fallback chain
+    // Factory automatically uses heuristics when no API keys provided
     const descriptionGenerator = factory.createDescriptionGenerator();
     const sectionDiscovery = factory.createSectionDiscovery();
-    const titleCleaning = factory.createTitleCleaning();
+
+    // Always use heuristic title cleaning (language-agnostic, free, fast)
+    // Heuristic approach works for all languages and saves API calls
+    const titleCleaning = new HeuristicTitleCleaner();
+
+    if (!useAI) {
+      console.log(
+        "[Generation Mode] metadata mode: using heuristics (HTML meta tags, pattern-based)"
+      );
+    }
 
     // Create formatter service with focused dependencies
     const formatterService = new Formatter(
@@ -128,12 +151,14 @@ export class GenerateLlmsTxt {
     const sitemapData = this.crawler?.getSitemapData();
     const robotsDirectives = this.crawler?.getRobotsDirectives();
 
-    // Generate llms.txt content with crawler metadata
+    // Generate llms.txt content with all user-provided overrides
     return await formatterService.generate(
       pages,
-      undefined,
+      request.projectName, // Manual project name override
       sitemapData,
-      robotsDirectives
+      robotsDirectives,
+      request.projectDescription, // Manual description override
+      request.titleCleanup // Manual title cleanup patterns
     );
   }
 }

@@ -1,15 +1,9 @@
 import { IChainable } from "./chained-service";
-import {
-  IDescriptionGenerator,
-  ISectionDiscoveryService,
-  ITitleCleaningService,
-} from "./types";
+import { IDescriptionGenerator, ISectionDiscoveryService } from "./types";
 import { GroqDescriptionGenerator } from "./groq/groq-description-generator";
 import { GroqSectionDiscovery } from "./groq/groq-section-discovery";
-import { GroqTitleCleaner } from "./groq/groq-title-cleaner";
 import { HeuristicDescriptionGenerator } from "./heuristic/heuristic-description-generator";
 import { HeuristicSectionDiscovery } from "./heuristic/heuristic-section-discovery";
-import { HeuristicTitleCleaner } from "./heuristic/heuristic-title-cleaner";
 import { createChainedService } from "@/lib/ai-enhancement/chained-service";
 
 /**
@@ -83,28 +77,6 @@ export class ContentGeneratorFactory {
       },
       () => new HeuristicSectionDiscovery(),
       "SectionDiscovery"
-    );
-  }
-
-  /**
-   * Create Title Cleaning Service with fallback chain
-   * Chain order: Configured LLMs → Heuristics
-   */
-  createTitleCleaning(): ITitleCleaningService {
-    return this.createChainedService<ITitleCleaningService>(
-      (provider, apiKey, rateLimit) => {
-        switch (provider) {
-          case "groq":
-            return new GroqTitleCleaner(apiKey, rateLimit);
-          // Future providers:
-          // case "openai":
-          //   return new OpenAITitleCleaner(apiKey, rateLimit);
-          default:
-            return null;
-        }
-      },
-      () => new HeuristicTitleCleaner(),
-      "TitleCleaning"
     );
   }
 

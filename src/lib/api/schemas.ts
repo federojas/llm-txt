@@ -67,6 +67,34 @@ export const crawlConfigSchema = z.object({
 });
 
 /**
+ * Content generation mode
+ * Note: Title cleaning always uses heuristics (language-agnostic, free)
+ */
+export const generationModeSchema = z.enum([
+  "ai", // Use LLM for descriptions + summaries (default, ~51 API calls)
+  "metadata", // Use HTML meta tags only (faster, no API cost)
+]);
+
+/**
+ * Title cleanup configuration
+ */
+export const titleCleanupSchema = z.object({
+  removePatterns: z
+    .array(z.string())
+    .optional()
+    .describe("Regex patterns to remove from titles (e.g., '\\\\| SiteName$')"),
+  replacements: z
+    .array(
+      z.object({
+        pattern: z.string(),
+        replacement: z.string(),
+      })
+    )
+    .optional()
+    .describe("Pattern replacements for title normalization"),
+});
+
+/**
  * Crawl options schema (all fields optional except URL)
  * Uses default values (50 pages, depth 3) for optimal 60-90s execution
  *
@@ -101,6 +129,24 @@ export const crawlOptionsSchema = z.object({
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),
   languageStrategy: languageStrategySchema.optional(),
+
+  // Manual overrides (Phase 1: User control)
+  projectName: z
+    .string()
+    .max(100)
+    .optional()
+    .describe("Override auto-detected project name"),
+  projectDescription: z
+    .string()
+    .max(500)
+    .optional()
+    .describe("Override AI-generated summary"),
+
+  // Generation mode (Phase 1: Performance/cost optimization)
+  generationMode: generationModeSchema.optional(),
+
+  // Title cleanup (Phase 1: Output quality)
+  titleCleanup: titleCleanupSchema.optional(),
 }) satisfies z.ZodType<GenerateRequest>;
 
 /**
