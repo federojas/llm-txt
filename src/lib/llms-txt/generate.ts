@@ -12,6 +12,8 @@ import { CrawlConfig, PageMetadata } from "@/lib/types";
 import { GenerateRequest, GenerateResponseData } from "@/lib/api";
 
 export class GenerateLlmsTxt {
+  private crawler?: Crawler; // Store crawler instance to access sitemapData
+
   /**
    * Execute the use case: generate llms.txt content for a given URL with options
    */
@@ -31,7 +33,7 @@ export class GenerateLlmsTxt {
         );
       }
 
-      // Generate llms.txt content
+      // Generate llms.txt content (uses this.crawler for sitemapData)
       const content = await this.generateContent(pages);
 
       // Return structured response
@@ -84,14 +86,14 @@ export class GenerateLlmsTxt {
     // Initialize ad blocker for external link filtering
     const adBlocker = new AdBlocker();
 
-    const crawler = new Crawler(
+    this.crawler = new Crawler(
       config,
       undefined,
       undefined,
       languageDetector,
       adBlocker
     );
-    return crawler.crawl();
+    return this.crawler.crawl();
   }
 
   /**
@@ -122,8 +124,17 @@ export class GenerateLlmsTxt {
       titleCleaning
     );
 
-    // Generate llms.txt content
-    return await formatterService.generate(pages);
+    // Get sitemap data and robots directives from crawler (for link scoring)
+    const sitemapData = this.crawler?.getSitemapData();
+    const robotsDirectives = this.crawler?.getRobotsDirectives();
+
+    // Generate llms.txt content with crawler metadata
+    return await formatterService.generate(
+      pages,
+      undefined,
+      sitemapData,
+      robotsDirectives
+    );
   }
 }
 

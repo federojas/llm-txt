@@ -4,36 +4,81 @@
  * Distributed per-IP rate limiting using Upstash Redis (serverless-native, HTTP-based).
  * Gracefully degrades when Redis is not configured (development mode).
  *
- * Production setup: See README.md for Upstash deployment instructions.
+ * Uses dynamic imports for runtime loading while maintaining compile-time type safety.
+ * Production setup: Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN env vars.
  */
 
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
+import type { Ratelimit } from "@upstash/ratelimit";
+import type { Redis } from "@upstash/redis";
 
 /**
  * Create Redis client from environment variables
  * Returns null if not configured (disables rate limiting)
  */
-function createRedisClient(): Redis | null {
+async function createRedisClient(): Promise<Redis | null> {
   const isConfigured =
     process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!isConfigured) {
     console.warn(
-      "[Rate Limit] Upstash Redis not configured - rate limiting disabled"
+      "[Rate Limit] Upstash Redis not configured - rate limiting disabled (dev mode)"
     );
     return null;
   }
 
   try {
+    // Dynamic import to gracefully handle missing packages
+    const { Redis } = await import("@upstash/redis");
     return Redis.fromEnv();
   } catch (error) {
-    console.error("[Rate Limit] Failed to create Redis client:", error);
+    console.warn(
+      "[Rate Limit] @upstash/redis not available - rate limiting disabled:",
+      error
+    );
     return null;
   }
 }
 
-const redis = createRedisClient();
+/**
+ * Create rate limiter instance with dynamic imports
+ */
+async function createRateLimiter(
+  redis: Redis,
+  window: number,
+  period:
+    | `${number} ms`
+    | `${number} s`
+    | `${number} m`
+    | `${number} h`
+    | `${number} d`,
+  prefix: string
+): Promise<Ratelimit | null> {
+  try {
+    const { Ratelimit } = await import("@upstash/ratelimit");
+    return new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(window, period),
+      prefix,
+      analytics: true,
+    });
+  } catch (error) {
+    console.warn(`[Rate Limit] Failed to create limiter ${prefix}:`, error);
+    return null;
+  }
+}
+
+// Lazy initialization
+let redisPromise: Promise<Redis | null> | null = null;
+function getRedis(): Promise<Redis | null> {
+  if (!redisPromise) {
+    redisPromise = createRedisClient();
+  }
+  return redisPromise;
+}
+
+let createJobLimiterPromise: Promise<Ratelimit | null> | null = null;
+let globalJobLimiterPromise: Promise<Ratelimit | null> | null = null;
+let pollJobLimiterPromise: Promise<Ratelimit | null> | null = null;
 
 /**
  * Rate limiter for creating crawl jobs (per IP)
@@ -46,14 +91,14 @@ const redis = createRedisClient();
  * - Server/database capacity
  * - Business requirements (concurrent users, SLA targets)
  */
-export const createJobLimiter = redis
-  ? new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(5, "1 m"),
-      prefix: "ratelimit:create-job",
-      analytics: true,
-    })
-  : null;
+export async function getCreateJobLimiter(): Promise<Ratelimit | null> {
+  if (!createJobLimiterPromise) {
+    createJobLimiterPromise = getRedis().then((redis) =>
+      redis ? createRateLimiter(redis, 5, "1 m", "ratelimit:create-job") : null
+    );
+  }
+  return createJobLimiterPromise;
+}
 
 /**
  * Global rate limiter for all job creation (organization-level)
@@ -66,14 +111,16 @@ export const createJobLimiter = redis
  * - Groq Developer: 1,000 RPM → allow ~18 jobs/min (950 calls/min with 5% buffer)
  * - Groq Pro: 5,000+ RPM → increase proportionally
  */
-export const globalJobLimiter = redis
-  ? new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(15, "1 m"),
-      prefix: "ratelimit:global-jobs",
-      analytics: true,
-    })
-  : null;
+export async function getGlobalJobLimiter(): Promise<Ratelimit | null> {
+  if (!globalJobLimiterPromise) {
+    globalJobLimiterPromise = getRedis().then((redis) =>
+      redis
+        ? createRateLimiter(redis, 15, "1 m", "ratelimit:global-jobs")
+        : null
+    );
+  }
+  return globalJobLimiterPromise;
+}
 
 /**
  * Rate limiter for polling job status
@@ -84,14 +131,14 @@ export const globalJobLimiter = redis
  *
  * Higher limit than job creation since polling is cheap (DB read only, no LLM API calls).
  */
-export const pollJobLimiter = redis
-  ? new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(30, "1 m"),
-      prefix: "ratelimit:poll-job",
-      analytics: true,
-    })
-  : null;
+export async function getPollJobLimiter(): Promise<Ratelimit | null> {
+  if (!pollJobLimiterPromise) {
+    pollJobLimiterPromise = getRedis().then((redis) =>
+      redis ? createRateLimiter(redis, 30, "1 m", "ratelimit:poll-job") : null
+    );
+  }
+  return pollJobLimiterPromise;
+}
 
 /**
  * Extract client IP from Next.js request headers

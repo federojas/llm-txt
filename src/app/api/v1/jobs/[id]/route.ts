@@ -5,11 +5,11 @@
 
 import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { pollJobLimiter } from "@/lib/api/rate-limit";
+import { getPollJobLimiter } from "@/lib/api/rate-limit";
 import { withRateLimit } from "@/lib/api/middleware/rate-limit";
 
 export const GET = withRateLimit(
-  pollJobLimiter,
+  getPollJobLimiter,
   async (
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }

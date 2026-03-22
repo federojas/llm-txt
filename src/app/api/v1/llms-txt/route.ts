@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { inngest } from "@/inngest/client";
 import { JobStatus } from "@prisma/client";
 import { CRAWL_REQUESTED } from "@/inngest/events";
-import { createJobLimiter, globalJobLimiter } from "@/lib/api/rate-limit";
+import { getCreateJobLimiter, getGlobalJobLimiter } from "@/lib/api/rate-limit";
 import { withRateLimit } from "@/lib/api/middleware/rate-limit";
 
 export const runtime = "nodejs";
@@ -24,7 +24,7 @@ export const maxDuration = 300; // 5 minutes for job creation and Inngest trigge
  * - Database: Job status persistence
  */
 export const POST = withRateLimit(
-  createJobLimiter,
+  getCreateJobLimiter,
   withErrorHandler(async (request: NextRequest) => {
     // Validate request (schema conforms to GenerateRequest DTO)
     const requestData: GenerateRequest = await validateRequest(
@@ -59,5 +59,5 @@ export const POST = withRateLimit(
       { status: 202 } // 202 Accepted
     );
   }),
-  globalJobLimiter // Check org-level quota to prevent API exhaustion
+  getGlobalJobLimiter // Check org-level quota to prevent API exhaustion
 );

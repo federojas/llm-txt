@@ -18,6 +18,7 @@ export interface PageMetadata {
   internalLinks: string[];
   externalLinks?: ExternalLink[]; // Valuable external resources (repos, docs, APIs)
   sitemapPriority?: number; // From sitemap.xml (0.0-1.0) for better classification
+  relevanceScore?: number; // Calculated importance score (0-100) based on multiple signals
 }
 
 /**

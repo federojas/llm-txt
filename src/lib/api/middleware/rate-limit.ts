@@ -4,8 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { Ratelimit } from "@upstash/ratelimit";
 import { getClientIp } from "@/lib/api/rate-limit";
+import type { Ratelimit } from "@upstash/ratelimit";
 
 /**
  * Rate limit exceeded response
@@ -38,33 +38,37 @@ function rateLimitExceededResponse(resetMs: number): NextResponse {
  * Rate limiting middleware wrapper
  * Checks rate limit before executing handler and adds rate limit headers to all responses
  *
- * @param limiter - Upstash Ratelimit instance (or null to disable)
+ * @param getLimiter - Async function that returns Ratelimit instance (or null to disable)
  * @param handler - Route handler to wrap
- * @param globalLimiter - Optional global limiter (checks organization-level quota)
+ * @param getGlobalLimiter - Optional async function for global limiter (checks organization-level quota)
  * @returns Wrapped handler with rate limiting
  *
  * @example
  * ```typescript
  * // Per-IP only
  * export const GET = withRateLimit(
- *   pollJobLimiter,
+ *   getPollJobLimiter,
  *   async (request) => { ... }
  * );
  *
  * // Per-IP + Global quota
  * export const POST = withRateLimit(
- *   createJobLimiter,
+ *   getCreateJobLimiter,
  *   withErrorHandler(async (request) => { ... }),
- *   globalJobLimiter
+ *   getGlobalJobLimiter
  * );
  * ```
  */
 export function withRateLimit<T extends unknown[]>(
-  limiter: Ratelimit | null,
+  getLimiter: () => Promise<Ratelimit | null>,
   handler: (request: NextRequest, ...args: T) => Promise<NextResponse>,
-  globalLimiter?: Ratelimit | null
+  getGlobalLimiter?: () => Promise<Ratelimit | null>
 ) {
   return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
+    // Get limiters
+    const limiter = await getLimiter();
+    const globalLimiter = getGlobalLimiter ? await getGlobalLimiter() : null;
+
     // Skip rate limiting if limiter not configured (development mode)
     if (!limiter) {
       return handler(request, ...args);

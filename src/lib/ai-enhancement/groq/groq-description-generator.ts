@@ -1,6 +1,10 @@
 import { IDescriptionGenerator } from "../types";
 import { PageMetadata } from "@/lib/types";
 import { GroqClient } from "./groq-client";
+import {
+  getDescriptionPrompt,
+  getBusinessSummaryPrompt,
+} from "../llms-txt-context";
 
 /**
  * Groq Description Generator
@@ -26,24 +30,16 @@ export class GroqDescriptionGenerator implements IDescriptionGenerator {
           max_tokens: 120,
           messages: [
             {
+              role: "system",
+              content: getDescriptionPrompt(),
+            },
+            {
               role: "user",
-              content: `Create a clear, actionable description for this webpage (max 20 words).
+              content: `Create a concise description for this page (max 20 words).
 
 Title: ${page.title}
 URL: ${page.url}
 Meta Description: ${page.description || page.ogDescription || "N/A"}
-
-Guidelines:
-- Focus on what users can DO, LEARN, or FIND on this page
-- Use active verbs: "Learn", "Explore", "Discover", "Find", "Access"
-- Be specific and informative
-- Start with the action verb
-
-Good examples:
-- "Learn about YouTube's brand resources and guidelines."
-- "Explore copyright tools and protections for creators."
-- "Find resources for advertisers and business partners."
-- "Access YouTube's privacy settings and data controls."
 
 Output only the description, no quotes, no preamble.`,
             },
@@ -68,8 +64,12 @@ Output only the description, no quotes, no preamble.`,
           max_tokens: 500,
           messages: [
             {
+              role: "system",
+              content: getBusinessSummaryPrompt(),
+            },
+            {
               role: "user",
-              content: `Analyze this website and create a technical summary for LLMs.
+              content: `Analyze this website homepage and create a technical summary.
 
 Site Name: ${homepage.siteName || homepage.title}
 URL: ${homepage.url}
@@ -79,15 +79,14 @@ Body Text: ${homepage.bodyText || "N/A"}
 
 Create TWO parts separated by "|||":
 
-FIRST PART (one sentence, 40-60 words):
-Write a technical summary mentioning specific technologies/frameworks from the body text above (e.g., "brings together Starlette, Uvicorn, HTMX"). If no tech details are in the body text, describe what the platform does generally.
+FIRST PART (1-3 sentences, 40-60 words):
+Write a technical summary mentioning specific technologies/frameworks if present in the body text.
 
 SECOND PART:
-If this is a technical tool/library/framework (not just informational), write "Things to remember when using ${homepage.siteName || homepage.title}:" followed by 3-5 bullet points extracted from the body text above. Use markdown bullets (- ).
+If this is a technical tool/library/framework, write "Things to remember when using ${homepage.siteName || homepage.title}:" followed by 3-5 bullet points from the body text.
+If it's just informational or no technical details, write: NONE
 
-If it's just an informational site or body text has no technical details, write only: NONE
-
-IMPORTANT: Do NOT write "PART 1" or "PART 2" as headings. Just output the content directly.
+Do NOT write "PART 1" or "PART 2" as headings.
 
 Example output:
 "FastHTML is a Python library combining Starlette, Uvicorn, and HTMX for server-rendered applications|||Things to remember when using FastHTML:\n\n- Not compatible with FastAPI syntax\n- Includes Pico CSS support (optional)"

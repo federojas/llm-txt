@@ -1,6 +1,7 @@
 import { ISectionDiscoveryService } from "../types";
 import { PageMetadata, SectionGroup } from "@/lib/types";
 import { GroqClient } from "./groq-client";
+import { getSectionDiscoveryPrompt } from "../llms-txt-context";
 
 /**
  * Groq Section Discovery Service
@@ -32,21 +33,17 @@ export class GroqSectionDiscovery implements ISectionDiscoveryService {
           temperature: 0.3, // Lower temperature for consistent grouping
           messages: [
             {
+              role: "system",
+              content: getSectionDiscoveryPrompt(),
+            },
+            {
               role: "user",
-              content: `Analyze these webpage titles and URLs, then group them into logical sections for a table of contents.
+              content: `Analyze these pages and group them into logical sections.
 
 Pages:
 ${pageList}
 
-Create 3-7 sections that group related content together. Use clear, concise section names (2-4 words).
-
-Common patterns to look for:
-- Documentation/Guides/Tutorials (technical content)
-- About/Company/Mission (informational)
-- Legal/Privacy/Terms (policies)
-- Creators/Advertisers/Partners (business)
-- Blog/News/Press (updates)
-- API/Reference (technical resources)
+Create 3-7 sections with clear, technical names (2-4 words each).
 
 Output as JSON only (no markdown, no explanation):
 {

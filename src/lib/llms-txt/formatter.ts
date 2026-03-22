@@ -5,12 +5,20 @@ import {
   ExternalLink,
   SectionGroup,
 } from "@/lib/types";
-import { normalizeUrlForOutput } from "@/lib/url/normalization";
+import { normalizeUrl } from "@/lib/url/normalization";
 import {
   IDescriptionGenerator,
   ISectionDiscoveryService,
   ITitleCleaningService,
 } from "@/lib/ai-enhancement/types";
+import type { SitemapUrl } from "@/lib/http/sitemap";
+import type { RobotsDirectives } from "@/lib/http/robots";
+import { scoreAndFilterPages } from "@/lib/crawling/link-scoring";
+import {
+  SiteDataSectionDiscovery,
+  type DiscoveredSection,
+} from "./site-driven-sections";
+import { createQualityGateFilter } from "./quality-gates";
 
 /**
  * Formatter Service
@@ -25,9 +33,23 @@ export class Formatter {
 
   /**
    * Generate llms.txt content from crawled pages
+   * @param pages - Crawled page metadata
+   * @param projectName - Optional project name override
+   * @param sitemapData - Optional sitemap metadata for link scoring
+   * @param robotsDirectives - Optional robots.txt directives for filtering
    */
-  async generate(pages: PageMetadata[], projectName?: string): Promise<string> {
-    const output = await this.buildStructure(pages, projectName);
+  async generate(
+    pages: PageMetadata[],
+    projectName?: string,
+    sitemapData?: Map<string, SitemapUrl>,
+    robotsDirectives?: RobotsDirectives
+  ): Promise<string> {
+    const output = await this.buildStructure(
+      pages,
+      projectName,
+      sitemapData,
+      robotsDirectives
+    );
     return this.format(output);
   }
 
@@ -36,7 +58,9 @@ export class Formatter {
    */
   private async buildStructure(
     pages: PageMetadata[],
-    projectName?: string
+    projectName?: string,
+    sitemapData?: Map<string, SitemapUrl>,
+    robotsDirectives?: RobotsDirectives
   ): Promise<LlmsTxtOutput> {
     if (pages.length === 0) {
       throw new Error("No pages to generate llms.txt from");
@@ -48,6 +72,26 @@ export class Formatter {
     // Determine project name
     const name = this.determineProjectName(homepage, projectName);
 
+    // Score and filter pages by relevance (if sitemap data available)
+    let filteredPages = pages;
+    if (sitemapData) {
+      const scoredPages = await scoreAndFilterPages(pages, {
+        sitemapData,
+        robotsDirectives,
+        minScoreThreshold: 45, // Raised to filter user-generated content (not in sitemap)
+      });
+
+      // Extract pages and update their relevanceScore field
+      filteredPages = scoredPages.map(({ page, score }) => ({
+        ...page,
+        relevanceScore: score.totalScore,
+      }));
+
+      console.log(
+        `[Link Scoring] Filtered ${pages.length} pages → ${filteredPages.length} (threshold: 40)`
+      );
+    }
+
     // Generate business summary for homepage
     const summaryResponse =
       await this.descriptionGenerator.generateBusinessSummary(homepage);
@@ -55,36 +99,60 @@ export class Formatter {
     // Parse summary response (format: "summary|||details" or just "summary")
     const { summary, details } = this.parseSummaryResponse(summaryResponse);
 
-    // Generate descriptions for all pages (rate limiting handled by generator)
-    const aiDescriptions = await this.generateDescriptions(pages);
+    // Generate descriptions for filtered pages only (saves API calls)
+    const aiDescriptions = await this.generateDescriptions(filteredPages);
 
     // Clean all page titles (removes redundant suffixes like "About - Site - Site")
-    const allTitles = pages.map((p) => p.title);
+    const allTitles = filteredPages.map((p) => p.title);
     const cleanedTitles = await this.titleCleaning.cleanTitles(allTitles);
     const cleanedTitleMap = new Map<string, string>();
-    pages.forEach((page, idx) => {
+    filteredPages.forEach((page, idx) => {
       cleanedTitleMap.set(page.url, cleanedTitles[idx]);
     });
 
     // Separate homepage from other pages
-    const nonHomepagePages = pages.filter((p) => p !== homepage);
-
-    // AI-powered section discovery: Let AI analyze titles/URLs to create logical groupings
-    const sectionGroups =
-      await this.sectionDiscovery.discoverSections(nonHomepagePages);
+    const nonHomepagePages = filteredPages.filter((p) => p !== homepage);
 
     // Collect all external links from crawled pages
-    const externalLinks = this.collectExternalLinks(pages);
+    const externalLinks = this.collectExternalLinks(filteredPages);
 
-    // Build sections using AI-discovered groupings
-    const sections = this.buildSectionsFromAI(
-      nonHomepagePages,
-      sectionGroups,
-      homepage,
-      aiDescriptions,
-      cleanedTitleMap,
-      externalLinks
-    );
+    // Site-driven section discovery: Use sitemap data to discover sections
+    // Falls back to AI if sitemap data not available
+    let sections: LlmsTxtSection[];
+
+    if (sitemapData && sitemapData.size > 0) {
+      console.log(
+        "[Section Discovery] Using site-driven approach (sitemap data available)"
+      );
+      const siteDiscovery = new SiteDataSectionDiscovery();
+      const discoveredSections = siteDiscovery.discoverSections(
+        nonHomepagePages,
+        sitemapData
+      );
+
+      sections = this.buildSectionsFromSiteData(
+        discoveredSections,
+        homepage,
+        aiDescriptions,
+        cleanedTitleMap,
+        externalLinks
+      );
+    } else {
+      console.log(
+        "[Section Discovery] Falling back to AI-powered approach (no sitemap data)"
+      );
+      const sectionGroups =
+        await this.sectionDiscovery.discoverSections(nonHomepagePages);
+
+      sections = this.buildSectionsFromAI(
+        nonHomepagePages,
+        sectionGroups,
+        homepage,
+        aiDescriptions,
+        cleanedTitleMap,
+        externalLinks
+      );
+    }
 
     // Separate optional/secondary content
     const { mainSections, optionalSection } =
@@ -138,7 +206,10 @@ export class Formatter {
 
   /**
    * Determine project name from homepage metadata
-   * Priority: custom name → siteName → ogTitle → h1 → title → hostname
+   * Priority: custom name → ogTitle → siteName → h1 → title → hostname
+   *
+   * ogTitle is prioritized because it's specifically set for social sharing
+   * and typically contains the clean brand name (e.g., "FastHTML" not "fastht.ml")
    */
   private determineProjectName(
     homepage: PageMetadata,
@@ -146,8 +217,8 @@ export class Formatter {
   ): string {
     return (
       projectName ||
+      homepage.ogTitle || // Prioritize og:title (clean brand name)
       homepage.siteName ||
-      homepage.ogTitle ||
       homepage.h1 ||
       homepage.title.split("|")[0].split("-")[0].trim() || // Extract before " | " or " - "
       new URL(homepage.url).hostname.replace(/^www\./, "")
@@ -224,7 +295,7 @@ export class Formatter {
       links: [
         {
           title: cleanedTitleMap.get(homepage.url) || homepage.title,
-          url: normalizeUrlForOutput(homepage.url),
+          url: normalizeUrl(homepage.url),
           description: aiDescriptions.get(homepage.url) || homepage.description,
         },
       ],
@@ -237,7 +308,7 @@ export class Formatter {
       // Deduplicate and sort
       const normalized = new Map<string, PageMetadata>();
       for (const page of groupPages) {
-        const normalizedUrl = normalizeUrlForOutput(page.url);
+        const normalizedUrl = normalizeUrl(page.url);
         if (!normalized.has(normalizedUrl)) {
           normalized.set(normalizedUrl, page);
         }
@@ -254,7 +325,7 @@ export class Formatter {
           title: group.name,
           links: sortedPages.map((page) => ({
             title: cleanedTitleMap.get(page.url) || page.title,
-            url: normalizeUrlForOutput(page.url),
+            url: normalizeUrl(page.url),
             description: aiDescriptions.get(page.url) || page.description,
           })),
         });
@@ -277,40 +348,36 @@ export class Formatter {
   }
 
   /**
-   * Build sections from classified pages and external links (legacy method)
+   * Build sections from site-driven discovery
+   * Uses sitemap URL structure to organize content
    */
-  private buildSections(
-    classified: Map<string, PageMetadata[]>,
+  private buildSectionsFromSiteData(
+    discoveredSections: DiscoveredSection[],
+    homepage: PageMetadata,
     aiDescriptions: Map<string, string>,
+    cleanedTitleMap: Map<string, string>,
     externalLinks: ExternalLink[]
   ): LlmsTxtSection[] {
     const sections: LlmsTxtSection[] = [];
 
-    // Priority order for sections
-    const sectionOrder = [
-      { key: "homepage", title: "Overview" },
-      { key: "documentation", title: "Documentation" },
-      { key: "guides", title: "Guides" },
-      { key: "tutorials", title: "Tutorials" },
-      { key: "api", title: "API Reference" },
-      { key: "about", title: "About" },
-      { key: "creators", title: "Creators & Advertisers" },
-      { key: "legal", title: "Legal & Policies" },
-      { key: "blog", title: "Blog" },
-      { key: "other", title: "Additional Resources" },
-    ];
+    // Add Overview section with homepage
+    sections.push({
+      title: "Overview",
+      links: [
+        {
+          title: cleanedTitleMap.get(homepage.url) || homepage.title,
+          url: normalizeUrl(homepage.url),
+          description: aiDescriptions.get(homepage.url) || homepage.description,
+        },
+      ],
+    });
 
-    for (const { key, title } of sectionOrder) {
-      const pages = classified.get(key);
-      if (!pages || pages.length === 0) continue;
-
-      // Deduplicate by normalized URL (strips all query params for output)
-      // Note: All URLs are already https:// from crawling (forceHttps: true)
+    // Add site-driven sections
+    for (const section of discoveredSections) {
+      // Deduplicate pages by normalized URL
       const normalized = new Map<string, PageMetadata>();
-
-      for (const page of pages) {
-        const normalizedUrl = normalizeUrlForOutput(page.url);
-
+      for (const page of section.pages) {
+        const normalizedUrl = normalizeUrl(page.url);
         if (!normalized.has(normalizedUrl)) {
           normalized.set(normalizedUrl, page);
         }
@@ -318,34 +385,43 @@ export class Formatter {
 
       const deduplicatedPages = Array.from(normalized.values());
 
-      // Sort by depth (shallower = more important) and title
-      const sortedPages = deduplicatedPages
-        .sort((a, b) => {
-          if (a.depth !== b.depth) return a.depth - b.depth;
-          return a.title.localeCompare(b.title);
-        })
-        .slice(0, 15); // Increased limit for better coverage
+      // Sort by relevance score (if available), then depth, then title
+      const sortedPages = deduplicatedPages.sort((a, b) => {
+        // Sort by relevance score first (higher is better)
+        if (a.relevanceScore !== undefined && b.relevanceScore !== undefined) {
+          if (a.relevanceScore !== b.relevanceScore) {
+            return b.relevanceScore - a.relevanceScore;
+          }
+        }
+        // Then by depth (shallower is better)
+        if (a.depth !== b.depth) return a.depth - b.depth;
+        // Finally by title
+        return a.title.localeCompare(b.title);
+      });
 
-      if (sortedPages.length > 0) {
+      // Limit to maxLinks based on section priority
+      const limitedPages = sortedPages.slice(0, section.maxLinks);
+
+      if (limitedPages.length > 0) {
         sections.push({
-          title,
-          links: sortedPages.map((page) => ({
-            title: page.title,
-            url: normalizeUrlForOutput(page.url), // Use normalized URL in output
+          title: section.name,
+          links: limitedPages.map((page) => ({
+            title: cleanedTitleMap.get(page.url) || page.title,
+            url: normalizeUrl(page.url),
             description: aiDescriptions.get(page.url) || page.description,
           })),
         });
       }
     }
 
-    // Add external links section if any valuable external resources found
+    // Add external links section if any
     if (externalLinks.length > 0) {
       sections.push({
         title: "External Resources",
         links: externalLinks.slice(0, 10).map((link) => ({
           title: link.title || new URL(link.url).hostname,
           url: link.url,
-          description: undefined, // External links don't have descriptions yet
+          description: undefined,
         })),
       });
     }
@@ -361,6 +437,7 @@ export class Formatter {
    * - For technical sites (docs/API): Keep Overview, Documentation, API as main, rest as optional
    * - For general sites (YouTube): Keep top sections as main (About, Creators, Legal), rest as optional
    * - Always limit main sections to avoid overwhelming output
+   * - Apply quality gates to remove duplicates and limit Optional size
    */
   private separateOptionalContent(sections: LlmsTxtSection[]): {
     mainSections: LlmsTxtSection[];
@@ -420,7 +497,22 @@ export class Formatter {
           }
         : undefined;
 
-    return { mainSections, optionalSection };
+    // Apply quality gates to remove duplicates and limit sizes
+    const qualityGate = createQualityGateFilter({
+      maxOptionalItems: 20, // Real-world sites (e.g., FastHTML) have 15+ optional items
+      allowDuplicatesInOptional: false,
+      mergeSimilarSections: true, // Merge related sections (e.g., /about + /howyoutubeworks)
+      maxLinksPerSection: 10, // Limit links per section after merging
+    });
+
+    const filtered = qualityGate.apply(mainSections, optionalSection);
+
+    console.log(
+      `[Quality Gates] Main sections: ${filtered.mainSections.length}, ` +
+        `Optional items: ${filtered.optionalSection?.links.length ?? 0}`
+    );
+
+    return filtered;
   }
 
   /**

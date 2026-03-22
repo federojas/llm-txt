@@ -369,6 +369,22 @@ export class Crawler {
   }
 
   /**
+   * Get sitemap data collected during crawl
+   * Returns Map of URL -> sitemap metadata (priority, lastmod)
+   */
+  getSitemapData(): Map<string, SitemapUrl> {
+    return this.sitemapData;
+  }
+
+  /**
+   * Get robots.txt directives fetched during crawl
+   * Returns directives or undefined if robots.txt not available
+   */
+  getRobotsDirectives(): RobotsDirectives | undefined {
+    return this.robotsDirectives;
+  }
+
+  /**
    * Update progress
    */
   private updateProgress(progress: Partial<CrawlProgress>): void {
