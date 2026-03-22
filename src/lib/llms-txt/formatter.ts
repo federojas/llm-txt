@@ -87,7 +87,7 @@ export class Formatter {
       const scoredPages = await scoreAndFilterPages(pages, {
         sitemapData,
         robotsDirectives,
-        minScoreThreshold: 45, // Raised to filter user-generated content (not in sitemap)
+        minScoreThreshold: 30, // Allow pages passing robots.txt even if not in sitemap
       });
 
       // Extract pages and update their relevanceScore field
@@ -97,7 +97,7 @@ export class Formatter {
       }));
 
       console.log(
-        `[Link Scoring] Filtered ${pages.length} pages → ${filteredPages.length} (threshold: 40)`
+        `[Link Scoring] Filtered ${pages.length} pages → ${filteredPages.length} (threshold: 30)`
       );
     }
 
