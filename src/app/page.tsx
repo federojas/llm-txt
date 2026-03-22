@@ -121,6 +121,8 @@ export default function Home() {
       generationMode?: "ai" | "metadata";
       projectName?: string;
       projectDescription?: string;
+      maxPages?: number;
+      maxDepth?: number;
     }
   ) => {
     setIsLoading(true);

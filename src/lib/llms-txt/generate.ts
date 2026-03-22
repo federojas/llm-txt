@@ -62,14 +62,15 @@ export class GenerateLlmsTxt {
   /**
    * Builds crawl configuration from request options
    * Uses defaults optimized for 60-90s execution: 50 pages, depth 3
+   * Note: timeout (10s) and concurrency (5) are hardcoded for security
    */
   private buildConfig(request: GenerateRequest): CrawlConfig {
     return {
       url: request.url,
       maxPages: request.maxPages ?? DEFAULT_MAX_PAGES,
       maxDepth: request.maxDepth ?? DEFAULT_MAX_DEPTH,
-      timeout: request.timeout ?? 10000,
-      concurrency: request.concurrency ?? 5,
+      timeout: 10000, // Hardcoded: 10s timeout (not user-configurable)
+      concurrency: 5, // Hardcoded: 5 concurrent requests (not user-configurable)
       includePatterns: request.includePatterns,
       excludePatterns: request.excludePatterns,
       languageStrategy: request.languageStrategy,

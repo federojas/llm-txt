@@ -98,6 +98,9 @@ export const titleCleanupSchema = z.object({
  * Crawl options schema (all fields optional except URL)
  * Uses default values (50 pages, depth 3) for optimal 60-90s execution
  *
+ * Note: timeout and concurrency are NOT exposed to users (security concern)
+ * They are hardcoded server-side to prevent abuse.
+ *
  * Uses `satisfies` to ensure schema matches GenerateRequest DTO type
  */
 export const crawlOptionsSchema = z.object({
@@ -113,18 +116,6 @@ export const crawlOptionsSchema = z.object({
     .int()
     .min(CRAWL_LIMITS.MIN_DEPTH)
     .max(CRAWL_LIMITS.MAX_DEPTH)
-    .optional(),
-  timeout: z
-    .number()
-    .int()
-    .min(CRAWL_LIMITS.MIN_TIMEOUT)
-    .max(CRAWL_LIMITS.MAX_TIMEOUT)
-    .optional(),
-  concurrency: z
-    .number()
-    .int()
-    .min(CRAWL_LIMITS.MIN_CONCURRENCY)
-    .max(CRAWL_LIMITS.MAX_CONCURRENCY)
     .optional(),
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),

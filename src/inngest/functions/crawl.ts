@@ -21,15 +21,7 @@ export const processCrawl = inngest.createFunction(
   },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async ({ event, step }: any) => {
-    const {
-      jobId,
-      url,
-      maxPages,
-      maxDepth,
-      timeout,
-      concurrency,
-      languageStrategy,
-    } = event.data;
+    const { jobId, url, maxPages, maxDepth, languageStrategy } = event.data;
 
     try {
       // Step 1: Update job to PROCESSING
@@ -49,8 +41,6 @@ export const processCrawl = inngest.createFunction(
           url,
           maxPages,
           maxDepth,
-          timeout,
-          concurrency,
           languageStrategy,
         });
       });

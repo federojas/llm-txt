@@ -31,10 +31,8 @@ export interface TitleCleanup {
 // Request DTO
 export interface GenerateRequest {
   url: string;
-  maxPages?: number;
-  maxDepth?: number;
-  timeout?: number;
-  concurrency?: number;
+  maxPages?: number; // Default: 50 (user-configurable crawl scope)
+  maxDepth?: number; // Default: 3 (user-configurable crawl depth)
   includePatterns?: string[];
   excludePatterns?: string[];
   languageStrategy?: LanguageStrategy;

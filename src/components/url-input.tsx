@@ -14,6 +14,8 @@ interface UrlInputProps {
       generationMode?: GenerationMode;
       projectName?: string;
       projectDescription?: string;
+      maxPages?: number;
+      maxDepth?: number;
     }
   ) => void;
   isLoading: boolean;
@@ -32,6 +34,8 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
   const [generationMode, setGenerationMode] = useState<GenerationMode>("ai");
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
+  const [maxPages, setMaxPages] = useState<string>("50"); // Default: 50 (range: 1-200)
+  const [maxDepth, setMaxDepth] = useState<string>("3"); // Default: 3 (range: 1-5)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,9 +71,11 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
       const options = {
         excludePatterns: parsePatterns(excludePatterns),
         includePatterns: parsePatterns(includePatterns),
-        generationMode: generationMode !== "ai" ? generationMode : undefined,
+        generationMode: generationMode, // Always send mode (default is "ai")
         projectName: projectName.trim() || undefined,
         projectDescription: projectDescription.trim() || undefined,
+        maxPages: maxPages ? parseInt(maxPages, 10) : undefined,
+        maxDepth: maxDepth ? parseInt(maxDepth, 10) : undefined,
       };
 
       // Only pass options if at least one is set
@@ -180,6 +186,54 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
               </select>
               <p className="mt-1 text-xs text-gray-500">
                 Note: Title cleaning always uses heuristics (language-agnostic)
+              </p>
+            </div>
+
+            {/* Max Pages */}
+            <div>
+              <label
+                htmlFor="maxPages"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Max Pages
+              </label>
+              <input
+                id="maxPages"
+                type="number"
+                value={maxPages}
+                onChange={(e) => setMaxPages(e.target.value)}
+                min="1"
+                max="200"
+                placeholder="50"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoading}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Maximum pages to crawl (1-200, default: 50)
+              </p>
+            </div>
+
+            {/* Max Depth */}
+            <div>
+              <label
+                htmlFor="maxDepth"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Max Depth
+              </label>
+              <input
+                id="maxDepth"
+                type="number"
+                value={maxDepth}
+                onChange={(e) => setMaxDepth(e.target.value)}
+                min="1"
+                max="5"
+                placeholder="3"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoading}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Maximum crawl depth (1-5, default: 3)
               </p>
             </div>
 

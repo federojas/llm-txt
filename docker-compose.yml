@@ -35,6 +35,7 @@ services:
       # Inngest Dev Server configuration
       INNGEST_DEV: "true"
       INNGEST_BASE_URL: "http://inngest:8288"
+      INNGEST_EVENT_KEY: "local-dev-key" # Dummy key for local development (not validated)
     volumes:
       - .:/app
       - /app/node_modules
