@@ -18,7 +18,7 @@ export const processCrawl = inngest.createFunction(
     id: "process-crawl",
     name: "Process Crawl Job",
     triggers: { event: CRAWL_REQUESTED },
-    timeouts: { finish: "5m" }, // Kill jobs after 5 minutes (prevent hanging)
+    timeouts: { finish: "30m" }, // Safety net for large crawls (maxPages up to 100)
   },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async ({ event, step }: any) => {

@@ -4,8 +4,6 @@ import {
   CRAWL_DEFAULTS,
   validateMaxPages,
   validateMaxDepth,
-  validateTimeout,
-  validateConcurrency,
   isValidUrl,
 } from "@/lib/crawling/validation";
 
@@ -13,7 +11,7 @@ describe("Domain Validation Rules", () => {
   describe("CRAWL_LIMITS constants", () => {
     it("should define correct limits", () => {
       expect(CRAWL_LIMITS.MIN_PAGES).toBe(1);
-      expect(CRAWL_LIMITS.MAX_PAGES).toBe(200);
+      expect(CRAWL_LIMITS.MAX_PAGES).toBe(100);
       expect(CRAWL_LIMITS.MIN_DEPTH).toBe(1);
       expect(CRAWL_LIMITS.MAX_DEPTH).toBe(5);
     });
@@ -32,7 +30,7 @@ describe("Domain Validation Rules", () => {
     it("should accept valid page counts", () => {
       expect(validateMaxPages(1)).toBe(true);
       expect(validateMaxPages(50)).toBe(true);
-      expect(validateMaxPages(200)).toBe(true);
+      expect(validateMaxPages(100)).toBe(true);
     });
 
     it("should reject page counts below minimum", () => {
@@ -41,8 +39,8 @@ describe("Domain Validation Rules", () => {
     });
 
     it("should reject page counts above maximum", () => {
-      expect(validateMaxPages(201)).toBe(false);
-      expect(validateMaxPages(1000)).toBe(false);
+      expect(validateMaxPages(101)).toBe(false);
+      expect(validateMaxPages(200)).toBe(false);
     });
 
     it("should reject non-integer values", () => {
@@ -66,42 +64,6 @@ describe("Domain Validation Rules", () => {
     it("should reject depth values above maximum", () => {
       expect(validateMaxDepth(6)).toBe(false);
       expect(validateMaxDepth(10)).toBe(false);
-    });
-  });
-
-  describe("validateTimeout", () => {
-    it("should accept valid timeout values", () => {
-      expect(validateTimeout(5000)).toBe(true);
-      expect(validateTimeout(10000)).toBe(true);
-      expect(validateTimeout(30000)).toBe(true);
-    });
-
-    it("should reject timeout values below minimum", () => {
-      expect(validateTimeout(4999)).toBe(false);
-      expect(validateTimeout(1000)).toBe(false);
-    });
-
-    it("should reject timeout values above maximum", () => {
-      expect(validateTimeout(30001)).toBe(false);
-      expect(validateTimeout(60000)).toBe(false);
-    });
-  });
-
-  describe("validateConcurrency", () => {
-    it("should accept valid concurrency values", () => {
-      expect(validateConcurrency(1)).toBe(true);
-      expect(validateConcurrency(5)).toBe(true);
-      expect(validateConcurrency(10)).toBe(true);
-    });
-
-    it("should reject concurrency values below minimum", () => {
-      expect(validateConcurrency(0)).toBe(false);
-      expect(validateConcurrency(-1)).toBe(false);
-    });
-
-    it("should reject concurrency values above maximum", () => {
-      expect(validateConcurrency(11)).toBe(false);
-      expect(validateConcurrency(20)).toBe(false);
     });
   });
 

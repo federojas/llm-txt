@@ -34,6 +34,7 @@ export const languageStrategySchema = z.enum([
 
 /**
  * Full crawl configuration schema (with defaults)
+ * Note: timeout and concurrency are hardcoded server-side (not user-configurable)
  */
 export const crawlConfigSchema = z.object({
   url: urlSchema,
@@ -49,18 +50,6 @@ export const crawlConfigSchema = z.object({
     .min(CRAWL_LIMITS.MIN_DEPTH)
     .max(CRAWL_LIMITS.MAX_DEPTH)
     .default(CRAWL_DEFAULTS.MAX_DEPTH),
-  timeout: z
-    .number()
-    .int()
-    .min(CRAWL_LIMITS.MIN_TIMEOUT)
-    .max(CRAWL_LIMITS.MAX_TIMEOUT)
-    .default(CRAWL_DEFAULTS.TIMEOUT),
-  concurrency: z
-    .number()
-    .int()
-    .min(CRAWL_LIMITS.MIN_CONCURRENCY)
-    .max(CRAWL_LIMITS.MAX_CONCURRENCY)
-    .default(CRAWL_DEFAULTS.CONCURRENCY),
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),
   languageStrategy: languageStrategySchema.optional(),

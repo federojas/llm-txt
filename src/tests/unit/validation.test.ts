@@ -42,8 +42,6 @@ describe("Validation Schemas", () => {
         url: "https://example.com",
         maxPages: 50,
         maxDepth: 3,
-        timeout: 10000,
-        concurrency: 5,
       };
       expect(crawlConfigSchema.safeParse(config).success).toBe(true);
     });
@@ -55,14 +53,12 @@ describe("Validation Schemas", () => {
       const result = crawlConfigSchema.parse(config);
       expect(result.maxPages).toBe(50);
       expect(result.maxDepth).toBe(3);
-      expect(result.timeout).toBe(10000);
-      expect(result.concurrency).toBe(5);
     });
 
     it("should enforce max page limits", () => {
       const config = {
         url: "https://example.com",
-        maxPages: 300,
+        maxPages: 101,
       };
       expect(crawlConfigSchema.safeParse(config).success).toBe(false);
     });

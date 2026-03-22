@@ -29,8 +29,8 @@ describe("URL Utilities", () => {
     });
 
     it("should sort query parameters", () => {
-      expect(normalizeUrl("https://example.com?z=1&a=2")).toBe(
-        "https://example.com/?a=2&z=1"
+      expect(normalizeUrl("https://example.com?tab=1&page=2&section=3")).toBe(
+        "https://example.com/?page=2&section=3&tab=1"
       );
     });
   });
