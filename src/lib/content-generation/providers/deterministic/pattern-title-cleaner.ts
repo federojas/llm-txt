@@ -1,12 +1,19 @@
-import { ITitleCleaningService } from "../types";
+import { ITitleCleaningService } from "../../core/types";
 
 /**
- * Heuristic Title Cleaner Service
- * Implements ONLY title cleaning (Single Responsibility Principle)
- * Uses regex patterns - no AI/API required
- * Always available as fallback
+ * Pattern Title Cleaner
+ *
+ * Non-AI title cleaner that uses regex patterns to remove redundant text.
+ * Cleans page titles by removing site names, separators, and duplicate segments.
+ *
+ * Advantages:
+ * - No API calls (free, fast)
+ * - Always available (fallback when AI unavailable)
+ * - Language-agnostic (works for any language)
+ *
+ * Used for all title cleaning (both AI and metadata modes).
  */
-export class HeuristicTitleCleaner implements ITitleCleaningService {
+export class PatternTitleCleaner implements ITitleCleaningService {
   isAvailable(): boolean {
     return true; // Always available as fallback
   }

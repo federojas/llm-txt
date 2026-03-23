@@ -10,7 +10,7 @@
  */
 export const CRAWL_LIMITS = {
   MIN_PAGES: 1,
-  MAX_PAGES: 100,
+  MAX_PAGES: 200,
   MIN_DEPTH: 1,
   MAX_DEPTH: 5,
 } as const;

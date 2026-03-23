@@ -46,15 +46,36 @@ export class LinkScorer {
    */
   async scoreLinks(pages: PageMetadata[]): Promise<Map<string, LinkScore>> {
     const scores = new Map<string, LinkScore>();
+    let passedCount = 0;
+    let failedCount = 0;
+
+    console.log(
+      `\n[Link Scoring] Scoring ${pages.length} pages (threshold: ${this.minScoreThreshold})`
+    );
 
     for (const page of pages) {
       const score = this.scorePage(page);
+      const passed = score.totalScore >= this.minScoreThreshold;
 
-      // Only include pages above threshold
-      if (score.totalScore >= this.minScoreThreshold) {
+      if (passed) {
         scores.set(page.url, score);
+        passedCount++;
+      } else {
+        failedCount++;
+      }
+
+      // Log first 10 pages (passed or failed) for debugging
+      if (passedCount + failedCount <= 10) {
+        console.log(
+          `  ${passed ? "✓" : "✗"} [${score.totalScore}] ${page.url}` +
+            ` (sitemap:${score.signals.sitemapPriority} depth:${score.signals.depth} robots:${score.signals.robotsAllowed})`
+        );
       }
     }
+
+    console.log(
+      `[Link Scoring] Result: ${passedCount} passed, ${failedCount} filtered out\n`
+    );
 
     return scores;
   }

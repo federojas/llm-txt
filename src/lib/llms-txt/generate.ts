@@ -5,9 +5,14 @@
 
 import { Crawler, LanguageDetector, AdBlocker } from "@/lib/crawling";
 import { Formatter } from "./formatter";
-import { ContentGeneratorFactory } from "@/lib/ai-enhancement";
-import { HeuristicTitleCleaner } from "@/lib/ai-enhancement/heuristic/heuristic-title-cleaner";
-import { DEFAULT_MAX_PAGES, DEFAULT_MAX_DEPTH } from "@/lib/config";
+import { ContentGeneratorFactory } from "@/lib/content-generation";
+import { PatternTitleCleaner } from "@/lib/content-generation/providers/deterministic/pattern-title-cleaner";
+import {
+  DEFAULT_MAX_PAGES,
+  DEFAULT_MAX_DEPTH,
+  AI_MODE_MAX_PAGES,
+} from "@/lib/config";
+import { CRAWL_LIMITS } from "@/lib/crawling/validation";
 import { NotFoundError, InternalServerError } from "@/lib/api";
 import { CrawlConfig, PageMetadata } from "@/lib/types";
 import { GenerateRequest, GenerateResponseData } from "@/lib/api";
@@ -61,13 +66,30 @@ export class GenerateLlmsTxt {
 
   /**
    * Builds crawl configuration from request options
-   * Uses defaults optimized for 60-90s execution: 50 pages, depth 3
+   * Applies mode-specific page limits:
+   * - Metadata mode (default): 200 pages, HTML meta tags for page descriptions
+   * - AI mode: 50 pages, AI-generated page descriptions (higher API usage)
+   * Note: Both modes use AI for site summary + section clustering (2 API calls total)
    * Note: timeout (10s) and concurrency (5) are hardcoded for security
    */
   private buildConfig(request: GenerateRequest): CrawlConfig {
+    // Apply mode-specific page limits
+    const generationMode = request.generationMode ?? "metadata"; // Default to metadata
+    const isAiMode = generationMode === "ai";
+
+    // Determine effective maxPages based on mode
+    let effectiveMaxPages: number;
+    if (request.maxPages !== undefined) {
+      // User explicitly set maxPages - respect it but enforce upper limit
+      effectiveMaxPages = Math.min(request.maxPages, CRAWL_LIMITS.MAX_PAGES);
+    } else {
+      // No explicit maxPages - use mode-specific default
+      effectiveMaxPages = isAiMode ? AI_MODE_MAX_PAGES : DEFAULT_MAX_PAGES;
+    }
+
     return {
       url: request.url,
-      maxPages: request.maxPages ?? DEFAULT_MAX_PAGES,
+      maxPages: effectiveMaxPages,
       maxDepth: request.maxDepth ?? DEFAULT_MAX_DEPTH,
       timeout: 10000, // Hardcoded: 10s timeout (not user-configurable)
       concurrency: 5, // Hardcoded: 5 concurrent requests (not user-configurable)
@@ -106,40 +128,43 @@ export class GenerateLlmsTxt {
     request: GenerateRequest
   ): Promise<string> {
     // Generation mode control (Phase 1: User control)
-    const generationMode = request.generationMode || "ai";
-    const useAI = generationMode === "ai";
+    // Default to "metadata" for fast, reliable results
+    const generationMode = request.generationMode ?? "metadata";
+    const isAiMode = generationMode === "ai";
 
-    // Create factory with conditional API keys based on mode
-    // - "ai": Include Groq API key → tries AI first, falls back to heuristics
-    // - "metadata": Empty config → skips AI, uses heuristics only (HTML meta tags)
-    const factory = new ContentGeneratorFactory(
-      useAI
-        ? {
-            groq: {
-              apiKey: process.env.GROQ_API_KEY,
-              rateLimit: 30,
-            },
-            // Future providers can be added here:
-            // openai: { apiKey: process.env.OPENAI_API_KEY },
-            // anthropic: { apiKey: process.env.ANTHROPIC_API_KEY },
-          }
-        : {} // Empty config for metadata mode → heuristics only
+    // Initialize factory with API keys for AI services
+    const factory = new ContentGeneratorFactory({
+      groq: {
+        apiKey: process.env.GROQ_API_KEY,
+        rateLimit: 30,
+      },
+      // Future providers can be added here:
+      // openai: { apiKey: process.env.OPENAI_API_KEY },
+      // anthropic: { apiKey: process.env.ANTHROPIC_API_KEY },
+    });
+
+    // Create services using factory's fallback chain (AI → heuristics)
+    //
+    // Site summary: Always uses AI (1 API call)
+    // Section clustering: Always uses AI (1 API call) - fallback to heuristics if no API key
+    // Page descriptions: Mode-dependent
+    //   - "metadata": HTML meta tags (0 API calls per page)
+    //   - "ai": AI-generated (~50 API calls)
+    const descriptionGenerator = isAiMode
+      ? factory.createDescriptionGenerator() // AI for all descriptions
+      : factory.createHybridDescriptionGenerator(); // AI for site, metadata for pages
+
+    const sectionDiscovery = factory.createSectionDiscovery(); // Always AI with heuristic fallback
+
+    // Always use pattern-based title cleaning (language-agnostic, free, fast)
+    // Pattern approach works for all languages and saves API calls
+    const titleCleaning = new PatternTitleCleaner();
+
+    console.log(
+      isAiMode
+        ? "[Generation Mode] ai mode: AI for site summary (1), section clustering (1), page descriptions (~50)"
+        : "[Generation Mode] metadata mode: AI for site summary (1), section clustering (1), HTML meta for pages (0)"
     );
-
-    // Create services using factory's fallback chain
-    // Factory automatically uses heuristics when no API keys provided
-    const descriptionGenerator = factory.createDescriptionGenerator();
-    const sectionDiscovery = factory.createSectionDiscovery();
-
-    // Always use heuristic title cleaning (language-agnostic, free, fast)
-    // Heuristic approach works for all languages and saves API calls
-    const titleCleaning = new HeuristicTitleCleaner();
-
-    if (!useAI) {
-      console.log(
-        "[Generation Mode] metadata mode: using heuristics (HTML meta tags, pattern-based)"
-      );
-    }
 
     // Create formatter service with focused dependencies
     const formatterService = new Formatter(
@@ -159,7 +184,8 @@ export class GenerateLlmsTxt {
       sitemapData,
       robotsDirectives,
       request.projectDescription, // Manual description override
-      request.titleCleanup // Manual title cleanup patterns
+      request.titleCleanup, // Manual title cleanup patterns
+      generationMode // Page description mode (not used for section discovery)
     );
   }
 }

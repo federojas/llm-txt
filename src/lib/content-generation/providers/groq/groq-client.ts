@@ -1,5 +1,5 @@
 import Groq from "groq-sdk";
-import { TokenBucketLimiter } from "../rate-limiter";
+import { TokenBucketLimiter } from "../../shared/rate-limiter";
 
 interface ModelConfig {
   name: string;
@@ -37,10 +37,17 @@ export class GroqClient {
       tpd: 100000,
     },
     {
+      name: "meta-llama/llama-4-scout-17b-16e-instruct",
+      rpm: 30,
+      tpm: 30000, // 2.5x more tokens/min than llama-3.3-70b
+      rpd: 1000,
+      tpd: 500000, // 5x more tokens/day than llama-3.3-70b
+    },
+    {
       name: "llama-3.1-8b-instant",
       rpm: 30,
       tpm: 6000,
-      rpd: 14400,
+      rpd: 14400, // Highest daily request limit - safety net
       tpd: 500000,
     },
   ];

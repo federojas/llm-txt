@@ -6,6 +6,7 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 import { USER_AGENT } from "@/lib/config/constants";
+import { isSSRFSafe, getSSRFBlockReason } from "@/lib/api/ssrf";
 
 /**
  * HTTP Client Interface
@@ -70,6 +71,12 @@ const INTERNAL_HEADERS = {
  * Maximum redirects before considering it a redirect loop
  */
 const MAX_REDIRECTS = 10;
+
+/**
+ * Maximum response size to prevent memory exhaustion attacks
+ * 10MB is sufficient for HTML pages (most are < 1MB)
+ */
+const MAX_RESPONSE_SIZE = 10 * 1024 * 1024; // 10MB
 
 /**
  * Logger interface for dependency injection
@@ -379,11 +386,19 @@ class HttpClient {
 
     this.instance = axios.create({
       timeout: this.config.timeout,
-      maxRedirects: MAX_REDIRECTS, // Limit redirects to prevent infinite loops
+      maxRedirects: 0, // Disable automatic redirects - we'll handle them manually with SSRF validation
+      maxContentLength: MAX_RESPONSE_SIZE, // Prevent memory exhaustion from huge responses
+      maxBodyLength: MAX_RESPONSE_SIZE, // Prevent memory exhaustion from huge request bodies
       validateStatus: () => true, // Handle all status codes manually
       headers: {
         "User-Agent": this.config.userAgent,
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip, deflate, br", // Enable compression (60-80% bandwidth reduction)
+        DNT: "1", // Do Not Track
+        Connection: "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
       },
     });
 
@@ -485,9 +500,9 @@ class HttpClient {
       }
     );
 
-    // Response interceptor: Logging, metrics, retries, and HTTPS→HTTP fallback
+    // Response interceptor: Logging, metrics, retries, redirect validation, and HTTPS→HTTP fallback
     this.instance.interceptors.response.use(
-      (response) => {
+      async (response) => {
         const duration = this.calculateDuration(response.config);
         const requestId = this.getHeader(
           response.config,
@@ -502,6 +517,94 @@ class HttpClient {
 
         if (this.config.enableMetrics) {
           this.config.onRequestEnd(response.config, response, duration);
+        }
+
+        // Handle redirects manually with SSRF validation
+        const isRedirect = [301, 302, 303, 307, 308].includes(response.status);
+        if (isRedirect && response.headers.location) {
+          const redirectUrl = response.headers.location;
+          const redirectCountStr = this.getHeader(
+            response.config,
+            INTERNAL_HEADERS.REDIRECT_COUNT
+          );
+          const redirectCount = parseInt(redirectCountStr || "0", 10);
+
+          // Check redirect limit
+          if (redirectCount >= MAX_REDIRECTS) {
+            const error = new Error(
+              `Too many redirects (max ${MAX_REDIRECTS})`
+            ) as AxiosError;
+            error.config = response.config;
+            error.response = response;
+            return Promise.reject(error);
+          }
+
+          // Resolve relative URLs
+          const absoluteRedirectUrl = new URL(redirectUrl, response.config.url)
+            .href;
+
+          // Validate redirect URL against SSRF rules
+          if (!isSSRFSafe(absoluteRedirectUrl)) {
+            const reason = getSSRFBlockReason(absoluteRedirectUrl);
+            const error = new Error(
+              `Redirect blocked by SSRF protection: ${reason}`
+            ) as AxiosError;
+            error.config = response.config;
+            error.response = response;
+
+            if (this.config.enableLogging) {
+              this.logger.warn(
+                `[HTTP] ⚠ Blocked redirect to ${absoluteRedirectUrl}: ${reason} [${requestId}]`
+              );
+            }
+
+            return Promise.reject(error);
+          }
+
+          if (this.config.enableLogging) {
+            this.logger.log(
+              `[HTTP] ↪ Redirect ${redirectCount + 1}/${MAX_REDIRECTS}: ${absoluteRedirectUrl} [${requestId}]`
+            );
+          }
+
+          // Follow redirect with updated config
+          const redirectConfig: InternalAxiosRequestConfig = {
+            ...response.config,
+            url: absoluteRedirectUrl,
+          };
+          // Clone headers to prevent pollution
+          if (response.config.headers) {
+            redirectConfig.headers = Object.assign({}, response.config.headers);
+          }
+          this.setHeader(
+            redirectConfig,
+            INTERNAL_HEADERS.REDIRECT_COUNT,
+            (redirectCount + 1).toString()
+          );
+
+          // Update redirect chain for debugging
+          // Sanitize URLs to only allow valid HTTP header characters (ASCII printable only)
+          const sanitizedUrl = absoluteRedirectUrl.replace(/[^\x20-\x7E]/g, "");
+          const existingChain = this.getHeader(
+            response.config,
+            INTERNAL_HEADERS.REDIRECT_CHAIN
+          );
+          const sanitizedChain = existingChain?.replace(/[^\x20-\x7E]/g, "");
+          this.setHeader(
+            redirectConfig,
+            INTERNAL_HEADERS.REDIRECT_CHAIN,
+            sanitizedChain
+              ? `${sanitizedChain} -> ${sanitizedUrl}`
+              : sanitizedUrl
+          );
+
+          // For 303, change method to GET (HTTP spec)
+          if (response.status === 303) {
+            redirectConfig.method = "GET";
+            delete redirectConfig.data;
+          }
+
+          return this.instance.request(redirectConfig);
         }
 
         return response;

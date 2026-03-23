@@ -308,19 +308,9 @@ export class QualityGateFilter {
         });
       }
 
-      // Generic heuristic: Filter sections with UGC-like characteristics
-      // - Single-word title (Channel, User, Profile, Member, etc.)
-      // - Many items (8+ suggests aggregation page)
-      const isSingleWord = section.title.split(/\s+/).length === 1;
-      const hasManyItems = filteredLinks.length >= 8;
-
-      if (isSingleWord && hasManyItems) {
-        // Likely UGC aggregation - skip this section
-        console.log(
-          `[Quality Gates] Filtered UGC section: "${section.title}" (${filteredLinks.length} items)`
-        );
-        continue;
-      }
+      // NOTE: UGC filtering handled by UrlStructureSectionDiscovery
+      // Uses relevance scores (from link scoring with sitemap priorities) instead of hardcoded keywords
+      // This quality gate now only handles URL pattern exclusions (if configured)
 
       // Only include section if it has links after filtering
       if (filteredLinks.length > 0) {

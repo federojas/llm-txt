@@ -1,7 +1,7 @@
-import { ISectionDiscoveryService } from "../types";
+import { ISectionDiscoveryService } from "../../core/types";
 import { PageMetadata, SectionGroup } from "@/lib/types";
 import { GroqClient } from "./groq-client";
-import { getSectionDiscoveryPrompt } from "../llms-txt-context";
+import { getSectionDiscoveryPrompt } from "../../shared/llms-txt-context";
 
 /**
  * Groq Section Discovery Service
@@ -20,9 +20,12 @@ export class GroqSectionDiscovery implements ISectionDiscoveryService {
   }
 
   async discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]> {
-    // Prepare page list for LLM (title + URL for context)
+    // Prepare page list for LLM (title + URL + description for better semantic grouping)
     const pageList = pages
-      .map((page, idx) => `${idx}. [${page.title}](${page.url})`)
+      .map((page, idx) => {
+        const desc = page.description ? ` - ${page.description}` : "";
+        return `${idx}. [${page.title}](${page.url})${desc}`;
+      })
       .join("\n");
 
     return this.groqClient.executeWithFallback(async (model, client) => {

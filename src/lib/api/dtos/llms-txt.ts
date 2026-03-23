@@ -9,11 +9,11 @@
 import { LanguageStrategy } from "@/lib/types";
 
 /**
- * Content generation mode
- * - "ai": Use LLM for descriptions and summaries (default, ~51 API calls)
- * - "metadata": Use HTML meta tags only (faster, no API cost)
+ * Page description generation mode
+ * - "ai": Use AI for page descriptions (best for sites with poor metadata, ~50 API calls)
+ * - "metadata": Use HTML meta tags for page descriptions (faster, free, good for most sites)
  *
- * Note: Title cleaning always uses heuristics (language-agnostic, free)
+ * Note: Site summary and section clustering always use AI (with fallback to heuristics)
  */
 export type GenerationMode = "ai" | "metadata";
 

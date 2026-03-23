@@ -119,6 +119,11 @@ export class Crawler {
 
       // No validation needed - both strategies handle empty results gracefully
 
+      console.log(`\n[Crawler] Crawl complete:`);
+      console.log(`  - Pages found: ${this.results.length}`);
+      console.log(`  - Sitemap entries: ${this.sitemapData.size}`);
+      console.log(`  - Used sitemap: ${usedSitemap ? "yes" : "no"}\n`);
+
       this.updateProgress({
         status: "complete",
         pagesFound: this.results.length,
@@ -162,6 +167,8 @@ export class Crawler {
     );
     if (sitemapUrls.length === 0) return false;
 
+    console.log(`[Sitemap] Found ${sitemapUrls.length} URLs in sitemap`);
+
     // Sort by priority (highest first) to crawl important pages before hitting limit
     // Priority is 0.0-1.0, with 1.0 being highest priority
     sitemapUrls.sort((a, b) => (b.priority || 0.5) - (a.priority || 0.5));
@@ -170,6 +177,10 @@ export class Crawler {
     for (const sitemapUrl of sitemapUrls) {
       this.sitemapData.set(normalizeUrl(sitemapUrl.url), sitemapUrl);
     }
+
+    console.log(
+      `[Sitemap] Processing ${sitemapUrls.length} URLs (before: ${this.results.length} pages)...`
+    );
 
     // Process URLs from sitemap in batches
     const batches = this.chunkArray(sitemapUrls, this.config.concurrency);
@@ -184,6 +195,8 @@ export class Crawler {
         })
       );
     }
+
+    console.log(`[Sitemap] After processing: ${this.results.length} pages\n`);
 
     return true;
   }
@@ -243,9 +256,11 @@ export class Crawler {
   ): Promise<PageMetadata | null> {
     // Skip language variant URLs (like /intl/ar/, /intl/ALL_bg/)
     if (isLanguageVariant(url)) {
+      console.log(`[fetchAndParse] Skipped ${url} - language variant`);
       return null;
     }
 
+    console.log(`[fetchAndParse] Processing: ${url}`);
     const normalized = normalizeUrl(url);
 
     // Skip if already visited
@@ -383,6 +398,9 @@ export class Crawler {
       if (!isHomepage) {
         const shouldSkip = this.shouldSkipPage(detectedLang, url);
         if (shouldSkip) {
+          console.log(
+            `[fetchAndParse] Skipped ${url} - language filter (detected: ${detectedLang})`
+          );
           return null;
         }
       }
@@ -393,6 +411,9 @@ export class Crawler {
         metadata.sitemapPriority = sitemapInfo.priority;
       }
 
+      console.log(
+        `[fetchAndParse] ✓ Added ${url} to results (total: ${this.results.length})`
+      );
       this.results.push(metadata);
 
       // Add internal links to queue if within depth limit

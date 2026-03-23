@@ -75,8 +75,16 @@ function isExcludedDomain(url: string): boolean {
 
     // Check subdomain patterns (e.g., "help.", "support.")
     for (const pattern of ADDITIONAL_EXCLUDED_PATTERNS) {
-      if (pattern.endsWith(".") && hostname.startsWith(pattern)) {
-        return true;
+      if (pattern.endsWith(".")) {
+        // Prefix pattern: "help." matches "help.example.com"
+        if (hostname.startsWith(pattern)) {
+          return true;
+        }
+      } else {
+        // Domain pattern: "youtube.com" matches "youtube.com" and "studio.youtube.com"
+        if (hostname === pattern || hostname.endsWith(`.${pattern}`)) {
+          return true;
+        }
       }
     }
 
@@ -104,6 +112,7 @@ export async function isValuableExternalLink(
   try {
     // Signal 1: Check domain blocklist (NEW - catches social media in main content)
     if (isExcludedDomain(url)) {
+      console.log(`[External Links] Blocked by domain: ${url}`);
       return false;
     }
 

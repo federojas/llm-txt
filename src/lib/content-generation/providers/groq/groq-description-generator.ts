@@ -1,10 +1,10 @@
-import { IDescriptionGenerator } from "../types";
+import { IDescriptionGenerator } from "../../core/types";
 import { PageMetadata } from "@/lib/types";
 import { GroqClient } from "./groq-client";
 import {
   getDescriptionPrompt,
   getBusinessSummaryPrompt,
-} from "../llms-txt-context";
+} from "../../shared/llms-txt-context";
 
 /**
  * Groq Description Generator
@@ -69,27 +69,51 @@ Output only the description, no quotes, no preamble.`,
             },
             {
               role: "user",
-              content: `Analyze this website homepage and create a technical summary.
+              content: `Analyze this website homepage and create a SPECIFIC summary explaining what this site is.
 
 Site Name: ${homepage.siteName || homepage.title}
 URL: ${homepage.url}
 Description: ${homepage.ogDescription || homepage.description || "N/A"}
 H1: ${homepage.h1 || "N/A"}
-Body Text: ${homepage.bodyText || "N/A"}
+Body Text: ${homepage.bodyText?.slice(0, 1500) || "N/A"}
+
+CRITICAL: Be SPECIFIC about what this site/service is and does. Extract concrete details from body text:
+- Core function/purpose (what does it do?)
+- Platform type or category
+- Key features, services, or offerings mentioned
+- For technical sites: specific technologies/frameworks
+- For services: main capabilities or products
 
 Create TWO parts separated by "|||":
 
-FIRST PART (1-3 sentences, 40-60 words):
-Write a technical summary mentioning specific technologies/frameworks if present in the body text.
+FIRST PART (1-2 sentences, 30-50 words):
+Explain SPECIFICALLY what this site is and does. Extract concrete details from body text.
 
-SECOND PART:
-If this is a technical tool/library/framework, write "Things to remember when using ${homepage.siteName || homepage.title}:" followed by 3-5 bullet points from the body text.
-If it's just informational or no technical details, write: NONE
+Good examples by domain:
+- Developer tool: "A Python library combining Starlette, Uvicorn, and HTMX for server-rendered hypermedia applications"
+- Video platform: "A video-sharing platform where users upload, view, rate, share, and comment on videos globally"
+- Banking: "An online banking platform offering checking accounts, savings, loans, and mobile payment services"
+- E-commerce: "An online marketplace for buying and selling handmade crafts, vintage items, and craft supplies"
+- News: "A news website covering technology, business, and innovation with analysis and opinion pieces"
 
-Do NOT write "PART 1" or "PART 2" as headings.
+Bad examples: "A great platform", "Modern web applications", "The best service"
 
-Example output:
-"FastHTML is a Python library combining Starlette, Uvicorn, and HTMX for server-rendered applications|||Things to remember when using FastHTML:\n\n- Not compatible with FastAPI syntax\n- Includes Pico CSS support (optional)"
+SECOND PART (choose format based on site type):
+
+FOR TOOLS/APIS/LIBRARIES (technical products you USE):
+Write "Things to remember when using ${homepage.siteName || homepage.title}:" followed by 3-5 bullet points from body text.
+
+FOR PLATFORMS/SERVICES (websites users VISIT):
+Write 2-3 paragraphs explaining:
+1. What the platform does in detail (expand on the summary)
+2. Key features or use cases
+3. Context for LLMs: "For LLMs assisting users, [site name] represents..." - explain how LLMs should help users interact with this platform
+
+FOR CONTENT SITES (news, blogs, info):
+Write 1-2 paragraphs about the content focus, topics covered, and target audience.
+
+IF no useful information in body text:
+Write: NONE
 
 Your output:`,
             },

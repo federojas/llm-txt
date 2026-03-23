@@ -10,14 +10,10 @@ import {
   IDescriptionGenerator,
   ISectionDiscoveryService,
   ITitleCleaningService,
-} from "@/lib/ai-enhancement/types";
+} from "@/lib/content-generation/core/types";
 import type { SitemapUrl } from "@/lib/http/sitemap";
 import type { RobotsDirectives } from "@/lib/http/robots";
 import { scoreAndFilterPages } from "@/lib/crawling/link-scoring";
-import {
-  SiteDataSectionDiscovery,
-  type DiscoveredSection,
-} from "./site-driven-sections";
 import { createQualityGateFilter } from "./quality-gates";
 import type { TitleCleanup } from "@/lib/api/dtos/llms-txt";
 
@@ -47,7 +43,8 @@ export class Formatter {
     sitemapData?: Map<string, SitemapUrl>,
     robotsDirectives?: RobotsDirectives,
     projectDescription?: string,
-    titleCleanup?: TitleCleanup
+    titleCleanup?: TitleCleanup,
+    generationMode: "ai" | "metadata" = "metadata"
   ): Promise<string> {
     const output = await this.buildStructure(
       pages,
@@ -55,7 +52,8 @@ export class Formatter {
       sitemapData,
       robotsDirectives,
       projectDescription,
-      titleCleanup
+      titleCleanup,
+      generationMode
     );
     return this.format(output);
   }
@@ -69,7 +67,8 @@ export class Formatter {
     sitemapData?: Map<string, SitemapUrl>,
     robotsDirectives?: RobotsDirectives,
     projectDescription?: string,
-    titleCleanup?: TitleCleanup
+    titleCleanup?: TitleCleanup,
+    generationMode: "ai" | "metadata" = "metadata"
   ): Promise<LlmsTxtOutput> {
     if (pages.length === 0) {
       throw new Error("No pages to generate llms.txt from");
@@ -141,43 +140,25 @@ export class Formatter {
     // Collect all external links from crawled pages
     const externalLinks = this.collectExternalLinks(filteredPages);
 
-    // Site-driven section discovery: Use sitemap data to discover sections
-    // Falls back to AI if sitemap data not available
-    let sections: LlmsTxtSection[];
+    // Section discovery: Always use AI semantic clustering
+    // BOTH modes use AI for section organization (1 API call, high quality)
+    // The difference between modes is ONLY in page descriptions:
+    // - Metadata mode: HTML meta tags for descriptions (0 API calls per page)
+    // - AI mode: AI for descriptions (~50 API calls)
+    console.log(
+      `[Section Discovery] Using AI-powered semantic clustering (${generationMode} mode)`
+    );
+    const sectionGroups =
+      await this.sectionDiscovery.discoverSections(nonHomepagePages);
 
-    if (sitemapData && sitemapData.size > 0) {
-      console.log(
-        "[Section Discovery] Using site-driven approach (sitemap data available)"
-      );
-      const siteDiscovery = new SiteDataSectionDiscovery();
-      const discoveredSections = siteDiscovery.discoverSections(
-        nonHomepagePages,
-        sitemapData
-      );
-
-      sections = this.buildSectionsFromSiteData(
-        discoveredSections,
-        homepage,
-        aiDescriptions,
-        cleanedTitleMap,
-        externalLinks
-      );
-    } else {
-      console.log(
-        "[Section Discovery] Falling back to AI-powered approach (no sitemap data)"
-      );
-      const sectionGroups =
-        await this.sectionDiscovery.discoverSections(nonHomepagePages);
-
-      sections = this.buildSectionsFromAI(
-        nonHomepagePages,
-        sectionGroups,
-        homepage,
-        aiDescriptions,
-        cleanedTitleMap,
-        externalLinks
-      );
-    }
+    const sections = this.buildSectionsFromAI(
+      nonHomepagePages,
+      sectionGroups,
+      homepage,
+      aiDescriptions,
+      cleanedTitleMap,
+      externalLinks
+    );
 
     // Separate optional/secondary content
     const { mainSections, optionalSection } =
@@ -304,6 +285,8 @@ export class Formatter {
    * Parse summary response from AI
    * Format: "summary|||details" or just "summary"
    * Details are optional (e.g., "Things to remember when using X:")
+   *
+   * AI sometimes includes labels like "FIRST PART:" or "SECOND PART:" which we strip.
    */
   private parseSummaryResponse(response: string): {
     summary: string;
@@ -311,12 +294,19 @@ export class Formatter {
   } {
     const parts = response.split("|||");
 
+    // Clean first part (summary)
+    let summary = parts[0].trim();
+    // Strip "FIRST PART:" label if present
+    summary = summary.replace(/^FIRST PART:\s*/i, "");
+
     if (parts.length === 1) {
-      return { summary: parts[0].trim() };
+      return { summary };
     }
 
-    const summary = parts[0].trim();
-    const detailsPart = parts[1].trim();
+    // Clean second part (details)
+    let detailsPart = parts[1].trim();
+    // Strip "SECOND PART:" label if present
+    detailsPart = detailsPart.replace(/^SECOND PART:?\s*/i, "");
 
     // If details section is "NONE", don't include it
     if (detailsPart === "NONE" || !detailsPart) {
@@ -378,11 +368,24 @@ export class Formatter {
 
     // Add AI-discovered sections
     for (const group of sectionGroups) {
-      const groupPages = group.pageIndexes.map((idx: number) => pages[idx]);
+      // Filter out invalid page indexes (defensive against AI errors)
+      const validIndexes = group.pageIndexes.filter(
+        (idx: number) => idx >= 0 && idx < pages.length
+      );
+
+      if (validIndexes.length === 0) {
+        console.warn(
+          `[Section Discovery] Skipping section "${group.name}" - no valid page indexes`
+        );
+        continue;
+      }
+
+      const groupPages = validIndexes.map((idx: number) => pages[idx]);
 
       // Deduplicate and sort
       const normalized = new Map<string, PageMetadata>();
       for (const page of groupPages) {
+        if (!page) continue; // Extra safety check
         const normalizedUrl = normalizeUrl(page.url);
         if (!normalized.has(normalizedUrl)) {
           normalized.set(normalizedUrl, page);
@@ -423,88 +426,6 @@ export class Formatter {
   }
 
   /**
-   * Build sections from site-driven discovery
-   * Uses sitemap URL structure to organize content
-   */
-  private buildSectionsFromSiteData(
-    discoveredSections: DiscoveredSection[],
-    homepage: PageMetadata,
-    aiDescriptions: Map<string, string>,
-    cleanedTitleMap: Map<string, string>,
-    externalLinks: ExternalLink[]
-  ): LlmsTxtSection[] {
-    const sections: LlmsTxtSection[] = [];
-
-    // Add Overview section with homepage
-    sections.push({
-      title: "Overview",
-      links: [
-        {
-          title: cleanedTitleMap.get(homepage.url) || homepage.title,
-          url: normalizeUrl(homepage.url),
-          description: aiDescriptions.get(homepage.url) || homepage.description,
-        },
-      ],
-    });
-
-    // Add site-driven sections
-    for (const section of discoveredSections) {
-      // Deduplicate pages by normalized URL
-      const normalized = new Map<string, PageMetadata>();
-      for (const page of section.pages) {
-        const normalizedUrl = normalizeUrl(page.url);
-        if (!normalized.has(normalizedUrl)) {
-          normalized.set(normalizedUrl, page);
-        }
-      }
-
-      const deduplicatedPages = Array.from(normalized.values());
-
-      // Sort by relevance score (if available), then depth, then title
-      const sortedPages = deduplicatedPages.sort((a, b) => {
-        // Sort by relevance score first (higher is better)
-        if (a.relevanceScore !== undefined && b.relevanceScore !== undefined) {
-          if (a.relevanceScore !== b.relevanceScore) {
-            return b.relevanceScore - a.relevanceScore;
-          }
-        }
-        // Then by depth (shallower is better)
-        if (a.depth !== b.depth) return a.depth - b.depth;
-        // Finally by title
-        return a.title.localeCompare(b.title);
-      });
-
-      // Limit to maxLinks based on section priority
-      const limitedPages = sortedPages.slice(0, section.maxLinks);
-
-      if (limitedPages.length > 0) {
-        sections.push({
-          title: section.name,
-          links: limitedPages.map((page) => ({
-            title: cleanedTitleMap.get(page.url) || page.title,
-            url: normalizeUrl(page.url),
-            description: aiDescriptions.get(page.url) || page.description,
-          })),
-        });
-      }
-    }
-
-    // Add external links section if any
-    if (externalLinks.length > 0) {
-      sections.push({
-        title: "External Resources",
-        links: externalLinks.slice(0, 10).map((link) => ({
-          title: link.title || new URL(link.url).hostname,
-          url: link.url,
-          description: undefined,
-        })),
-      });
-    }
-
-    return sections;
-  }
-
-  /**
    * Separate optional content from main sections
    * Per llms.txt spec: Optional section contains secondary info that can be skipped
    *
@@ -518,6 +439,10 @@ export class Formatter {
     mainSections: LlmsTxtSection[];
     optionalSection?: LlmsTxtSection;
   } {
+    console.log(
+      `[Main/Optional Split] Input sections: ${sections.map((s) => `"${s.title}" (${s.links.length} links)`).join(", ")}`
+    );
+
     // Detect site type by what sections exist
     const sectionTitles = sections.map((s) => s.title);
     const hasDocs = sectionTitles.includes("Documentation");

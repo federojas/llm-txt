@@ -1,13 +1,20 @@
-import { IDescriptionGenerator } from "../types";
+import { IDescriptionGenerator } from "../../core/types";
 import { PageMetadata } from "@/lib/types";
 
 /**
- * Heuristic Description Generator
- * Implements ONLY description generation (Single Responsibility Principle)
- * Uses rule-based pattern matching - no AI/API required
- * Always available as fallback
+ * Metadata Description Generator
+ *
+ * Non-AI description generator that uses HTML metadata and URL patterns.
+ * Extracts descriptions from og:description, meta description tags, and URL structure.
+ *
+ * Advantages:
+ * - No API calls (free, fast)
+ * - Always available (fallback when AI unavailable)
+ * - Deterministic (same input = same output)
+ *
+ * Used in metadata mode for page descriptions (while AI generates site summary).
  */
-export class HeuristicDescriptionGenerator implements IDescriptionGenerator {
+export class MetadataDescriptionGenerator implements IDescriptionGenerator {
   isAvailable(): boolean {
     return true; // Always available as fallback
   }
