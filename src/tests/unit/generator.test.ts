@@ -5,7 +5,7 @@ import {
   IDescriptionGenerator,
   ISectionDiscoveryService,
   ITitleCleaningService,
-} from "@/lib/ai-enhancement/types";
+} from "@/lib/content-generation/core/types";
 
 describe("LLMs.txt Generator", () => {
   const mockPages: PageMetadata[] = [

@@ -9,7 +9,7 @@ const isDev = process.env.INNGEST_DEV === "true";
 const baseUrl = process.env.INNGEST_BASE_URL;
 
 export const inngest = new Inngest({
-  id: "llm-txt",
+  id: "llms-txt",
   // In production, use INNGEST_EVENT_KEY
   eventKey: isDev ? undefined : process.env.INNGEST_EVENT_KEY,
   // For local Docker dev: point to dev server

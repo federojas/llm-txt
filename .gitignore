@@ -47,3 +47,6 @@ next-env.d.ts
 .husky/_
 
 /src/generated/prisma
+
+# scripts (test/development scripts)
+/scripts/

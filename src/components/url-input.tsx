@@ -31,11 +31,12 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludePatterns, setExcludePatterns] = useState("");
   const [includePatterns, setIncludePatterns] = useState("");
-  const [generationMode, setGenerationMode] = useState<GenerationMode>("ai");
+  const [generationMode, setGenerationMode] =
+    useState<GenerationMode>("metadata");
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
-  const [maxPages, setMaxPages] = useState<string>("50"); // Default: 50 (range: 1-200)
-  const [maxDepth, setMaxDepth] = useState<string>("3"); // Default: 3 (range: 1-5)
+  const [maxPages, setMaxPages] = useState<string>(""); // Empty = use mode-specific default (200 for metadata, 50 for AI)
+  const [maxDepth, setMaxDepth] = useState<string>(""); // Empty = use default (3)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,36 +122,6 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </div>
 
-        <div>
-          <label
-            htmlFor="languageStrategy"
-            className="mb-2 block text-sm font-medium text-gray-700"
-          >
-            Language Preference
-          </label>
-          <select
-            id="languageStrategy"
-            value={languageStrategy}
-            onChange={(e) =>
-              setLanguageStrategy(e.target.value as LanguageStrategy)
-            }
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-          >
-            <option value="prefer-english">
-              Prefer English (with automatic fallback)
-            </option>
-            <option value="page-language">
-              Use server&apos;s natural language
-            </option>
-          </select>
-          <p className="mt-1 text-xs text-gray-500">
-            {languageStrategy === "prefer-english"
-              ? "Requests English content first. Automatically falls back to the site's primary language if English is unavailable (e.g., German-only sites → German output). Always single-language."
-              : "⚠️ Accepts whatever language the server provides. May result in mixed languages for geo-aware sites like YouTube."}
-          </p>
-        </div>
-
         {/* Advanced Options */}
         <details className="rounded-lg border border-gray-200 bg-gray-50">
           <summary
@@ -166,7 +137,7 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                 htmlFor="generationMode"
                 className="mb-1 block text-sm font-medium text-gray-700"
               >
-                Generation Mode
+                Page Description Mode
               </label>
               <select
                 id="generationMode"
@@ -178,14 +149,46 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                 disabled={isLoading}
               >
                 <option value="ai">
-                  AI Mode (LLM for descriptions, ~51 API calls)
+                  AI-generated (best for sites with poor metadata, ~50 API
+                  calls)
                 </option>
                 <option value="metadata">
-                  Metadata Mode (HTML meta tags, faster, free)
+                  HTML meta tags (faster, free, good for most sites)
                 </option>
               </select>
               <p className="mt-1 text-xs text-gray-500">
-                Note: Title cleaning always uses heuristics (language-agnostic)
+                Section clustering always uses AI (with fallback to heuristics)
+              </p>
+            </div>
+
+            {/* Language Preference */}
+            <div>
+              <label
+                htmlFor="languageStrategy"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Language Preference
+              </label>
+              <select
+                id="languageStrategy"
+                value={languageStrategy}
+                onChange={(e) =>
+                  setLanguageStrategy(e.target.value as LanguageStrategy)
+                }
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoading}
+              >
+                <option value="prefer-english">
+                  Prefer English (with automatic fallback)
+                </option>
+                <option value="page-language">
+                  Use server&apos;s natural language
+                </option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                {languageStrategy === "prefer-english"
+                  ? "Requests English content first. Automatically falls back to the site's primary language if English is unavailable (e.g., German-only sites → German output). Always single-language."
+                  : "⚠️ Accepts whatever language the server provides. May result in mixed languages for geo-aware sites like YouTube."}
               </p>
             </div>
 
@@ -204,13 +207,22 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                 onChange={(e) => setMaxPages(e.target.value)}
                 min="1"
                 max="200"
-                placeholder="50"
+                placeholder={generationMode === "ai" ? "50" : "200"}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isLoading}
               />
               <p className="mt-1 text-xs text-gray-500">
-                Maximum pages to crawl (1-200, default: 50)
+                Maximum pages to crawl (1-200, default:{" "}
+                {generationMode === "ai" ? "50" : "200"})
               </p>
+              {generationMode === "ai" && parseInt(maxPages || "0") > 100 && (
+                <p className="mt-1 text-xs text-amber-600">
+                  ⚠️ AI mode with {maxPages} pages will take ~
+                  {Math.ceil((parseInt(maxPages) + 2) / 30 + 1.5)}-
+                  {Math.ceil((parseInt(maxPages) + 2) / 30 + 2)} minutes due to
+                  API rate limits
+                </p>
+              )}
             </div>
 
             {/* Max Depth */}

@@ -35,7 +35,7 @@ llms.txt is a proposed standard for providing structured information about websi
 ```bash
 # Clone the repository
 git clone https://github.com/federojas/llms-txt.git
-cd llm-txt
+cd llms-txt
 
 # Configure environment variables
 cp .env.example .env
@@ -295,7 +295,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#api-documentation) for full API document
 ## 📝 Project Structure
 
 ```
-llm-txt/
+llms-txt/
 ├── prisma/
 │   └── schema.prisma           # Database schema (jobs, status)
 ├── src/
