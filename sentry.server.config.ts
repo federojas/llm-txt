@@ -8,8 +8,8 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Only enable in production
-  enabled: process.env.NODE_ENV === "production",
+  // Only enable in production (not preview, not dev)
+  enabled: process.env.VERCEL_ENV === "production",
 
   // Environment tracking
   environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
@@ -20,7 +20,7 @@ Sentry.init({
   // Capture 100% of errors (free tier: 5k events/month)
   sampleRate: 1.0,
 
-  // Don't send sensitive data
+  // Don't send sensitive data (SECURITY: protect user privacy)
   beforeSend(event) {
     // Remove PII from event data
     if (event.request) {

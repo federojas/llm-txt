@@ -50,3 +50,6 @@ next-env.d.ts
 
 # scripts (test/development scripts)
 /scripts/
+
+# Sentry Config File
+.env.sentry-build-plugin

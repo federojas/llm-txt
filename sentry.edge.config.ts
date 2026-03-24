@@ -8,19 +8,19 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Only enable in production
-  enabled: process.env.NODE_ENV === "production",
+  // Only enable in production (not preview, not dev)
+  enabled: process.env.VERCEL_ENV === "production",
 
   // Environment tracking
   environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
 
-  // Performance monitoring (lower sampling for edge)
+  // Performance monitoring (lower sampling for edge to reduce costs)
   tracesSampleRate: 0.1,
 
   // Release tracking
   release: process.env.VERCEL_GIT_COMMIT_SHA,
 
-  // Don't send sensitive data
+  // Don't send sensitive data (SECURITY: protect user privacy)
   beforeSend(event) {
     if (event.request) {
       delete event.request.cookies;
