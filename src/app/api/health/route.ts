@@ -18,13 +18,14 @@ import { getLogger } from "@/lib/logger";
  * - Database connection (Neon Postgres) - CRITICAL
  * - Inngest background jobs (event/signing keys) - CRITICAL
  * - Groq API availability (key format validation) - NON-CRITICAL
+ * - Redis (Upstash) for rate limiting (ping test) - NON-CRITICAL
  *
  * Returns:
  * - 200 OK with "healthy" - All services operational
  * - 200 OK with "degraded" - Critical services up, optional services down
  * - 503 Service Unavailable with "unhealthy" - Critical services down
  *
- * Note: Groq API failures return "degraded" not 503 (graceful degradation)
+ * Note: Groq/Redis failures return "degraded" not 503 (graceful degradation)
  */
 interface HealthCheck {
   name: string;
@@ -49,6 +50,10 @@ export async function GET() {
   // Check 3: Groq API (NON-CRITICAL - logs warning but doesn't block)
   const groqCheck = await checkGroqAPI();
   checks.push(groqCheck);
+
+  // Check 4: Redis (NON-CRITICAL - rate limiting, only if configured)
+  const redisCheck = await checkRedis();
+  checks.push(redisCheck);
 
   // Determine overall status
   // Note: Even if Inngest is down, API can accept requests (202) and queue jobs
@@ -226,6 +231,49 @@ async function checkGroqAPI(): Promise<HealthCheck> {
   } catch (error) {
     return {
       name: "groq",
+      status: "unhealthy",
+      responseTime: Date.now() - startTime,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+async function checkRedis(): Promise<HealthCheck> {
+  const startTime = Date.now();
+
+  // Only check if Redis is configured (used for rate limiting)
+  if (!process.env.UPSTASH_REDIS_REST_URL) {
+    return {
+      name: "redis",
+      status: "healthy",
+      responseTime: 0,
+      error: "Not configured (optional)",
+    };
+  }
+
+  try {
+    // Quick ping to Upstash REST API
+    const response = await Promise.race([
+      fetch(`${process.env.UPSTASH_REDIS_REST_URL}/ping`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`,
+        },
+      }),
+      new Promise<Response>((_, reject) =>
+        setTimeout(() => reject(new Error("Redis timeout")), 2000)
+      ),
+    ]);
+
+    return {
+      name: "redis",
+      status: response.ok ? "healthy" : "unhealthy",
+      responseTime: Date.now() - startTime,
+      error: response.ok ? undefined : `HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      name: "redis",
       status: "unhealthy",
       responseTime: Date.now() - startTime,
       error: error instanceof Error ? error.message : "Unknown error",

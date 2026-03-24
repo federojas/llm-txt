@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
+import { getLogger } from "@/lib/logger";
 
 /**
  * GET /api/v1
  * API v1 index - lists all available resources in version 1
  */
 export async function GET() {
-  return NextResponse.json({
+  const logger = getLogger();
+  const startTime = Date.now();
+
+  logger.info("API v1 documentation requested", {
+    event: "api.v1.docs.request",
+    path: "/api/v1",
+  });
+
+  const response = NextResponse.json({
     version: "1",
     resources: {
       llmsTxt: {
@@ -37,4 +46,12 @@ export async function GET() {
       },
     },
   });
+
+  logger.info("API v1 documentation served", {
+    event: "api.v1.docs.response",
+    responseTime: Date.now() - startTime,
+  });
+
+  await logger.flush();
+  return response;
 }
