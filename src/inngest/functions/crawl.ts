@@ -3,6 +3,7 @@
  * Handles website crawling and llms.txt generation
  */
 
+import * as Sentry from "@sentry/nextjs";
 import { inngest } from "../client";
 import { db } from "@/lib/db";
 import { generateLlmsTxtUseCase } from "@/lib/llms-txt";
@@ -44,6 +45,17 @@ export const processCrawl = inngest.createFunction(
       jobId,
       url,
       correlationId, // Link Inngest logs back to API request
+    });
+
+    // Set Sentry tags for background job tracking
+    Sentry.setTag("correlationId", correlationId);
+    Sentry.setTag("jobId", jobId);
+    Sentry.setTag("jobType", "crawl");
+    Sentry.setContext("job", {
+      url,
+      maxPages,
+      maxDepth,
+      generationMode,
     });
 
     try {
@@ -127,12 +139,21 @@ export const processCrawl = inngest.createFunction(
       await logger.flush();
       return { success: true, jobId };
     } catch (error) {
+      // Log to Axiom
       logger.error("Job failed", {
         event: "inngest.job.failed",
         jobId,
         url,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      // Capture in Sentry
+      Sentry.captureException(error, {
+        level: "error",
+        tags: {
+          errorType: "job_failure",
+        },
       });
 
       // Handle failures: Update job to FAILED

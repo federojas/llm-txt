@@ -3,9 +3,11 @@
  *
  * Adds correlation IDs to all API requests for distributed tracing
  * Logs request start, completion, and errors
+ * Integrates with Sentry for error tracking
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createLogger, generateCorrelationId } from "@/lib/logger";
 import type { Logger } from "@/lib/logger";
 
@@ -34,6 +36,20 @@ export function createRequestLogger(
   additionalContext?: Record<string, unknown>
 ): { logger: Logger; correlationId: string } {
   const correlationId = getOrCreateCorrelationId(request);
+
+  // Set Sentry tags for error tracking
+  // This links Sentry errors back to Axiom logs via correlation ID
+  Sentry.setTag("correlationId", correlationId);
+  Sentry.setTag("path", request.nextUrl.pathname);
+  Sentry.setTag("method", request.method);
+
+  // Set Sentry context for richer error reports
+  Sentry.setContext("request", {
+    url: request.url,
+    method: request.method,
+    path: request.nextUrl.pathname,
+    query: Object.fromEntries(request.nextUrl.searchParams),
+  });
 
   const logger = createLogger({
     correlationId,
@@ -80,6 +96,7 @@ export function logRequestEnd(
 
 /**
  * Log request error
+ * Also captures error in Sentry with full context
  */
 export function logRequestError(
   logger: Logger,
@@ -89,6 +106,7 @@ export function logRequestError(
 ): void {
   const duration = Date.now() - startTime;
 
+  // Log to Axiom
   logger.error("Request failed", {
     event: "request.error",
     method: request.method,
@@ -96,6 +114,19 @@ export function logRequestError(
     error: error instanceof Error ? error.message : String(error),
     stack: error instanceof Error ? error.stack : undefined,
     duration,
+  });
+
+  // Capture in Sentry with additional context
+  Sentry.captureException(error, {
+    level: "error",
+    tags: {
+      errorType: "api_error",
+    },
+    contexts: {
+      performance: {
+        duration,
+      },
+    },
   });
 }
 
