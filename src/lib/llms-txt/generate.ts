@@ -29,7 +29,7 @@ export class GenerateLlmsTxt {
     const startTime = Date.now();
 
     try {
-      logger.info({
+      logger.info("Starting llms.txt generation", {
         event: "generate.start",
         url: request.url,
         maxPages: request.maxPages,
@@ -45,10 +45,9 @@ export class GenerateLlmsTxt {
 
       // Validate results
       if (pages.length === 0) {
-        logger.warn({
+        logger.warn("Could not crawl any pages from the provided URL", {
           event: "generate.no_pages_found",
           url: request.url,
-          message: "Could not crawl any pages from the provided URL",
         });
         throw new NotFoundError(
           "No pages found",
@@ -60,7 +59,7 @@ export class GenerateLlmsTxt {
       const content = await this.generateContent(pages, request);
 
       const duration = Date.now() - startTime;
-      logger.info({
+      logger.info("Generation completed successfully", {
         event: "generate.success",
         url: request.url,
         pagesFound: pages.length,
@@ -78,7 +77,7 @@ export class GenerateLlmsTxt {
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error({
+      logger.error("Generation failed", {
         event: "generate.error",
         url: request.url,
         duration,
@@ -196,16 +195,18 @@ export class GenerateLlmsTxt {
     const titleCleaning = new PatternTitleCleaner();
 
     const logger = createLogger({ url: request.url });
-    logger.info({
-      event: "generate.mode",
-      generationMode,
-      apiCalls: isAiMode
-        ? "site summary (1) + section clustering (1) + page descriptions (~50)"
-        : "site summary (1) + section clustering (1) + HTML meta for pages (0)",
-      message: isAiMode
+    logger.info(
+      isAiMode
         ? "AI mode: AI for site summary, section clustering, and page descriptions"
         : "Metadata mode: AI for site summary and section clustering, HTML meta for pages",
-    });
+      {
+        event: "generate.mode",
+        generationMode,
+        apiCalls: isAiMode
+          ? "site summary (1) + section clustering (1) + page descriptions (~50)"
+          : "site summary (1) + section clustering (1) + HTML meta for pages (0)",
+      }
+    );
 
     // Create formatter service with focused dependencies
     const formatterService = new Formatter(

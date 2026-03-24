@@ -39,7 +39,7 @@ export const POST = withRateLimit(
       crawlOptionsSchema
     );
 
-    logger.info({
+    logger.info("Creating crawl job", {
       event: "api.job.create",
       url: requestData.url,
       maxPages: requestData.maxPages,
@@ -55,7 +55,7 @@ export const POST = withRateLimit(
       },
     });
 
-    logger.info({
+    logger.info("Job created successfully", {
       event: "api.job.created",
       jobId: job.id,
       url: requestData.url,
@@ -72,7 +72,7 @@ export const POST = withRateLimit(
       },
     });
 
-    logger.info({
+    logger.info("Inngest job triggered", {
       event: "api.job.triggered",
       jobId: job.id,
       inngestEvent: CRAWL_REQUESTED,
@@ -90,6 +90,9 @@ export const POST = withRateLimit(
 
     // Add correlation ID to response headers for client-side tracing
     response.headers.set(CORRELATION_ID_HEADER, correlationId);
+
+    // Flush logs to Axiom (important for serverless)
+    await logger.flush();
 
     return response;
   }),

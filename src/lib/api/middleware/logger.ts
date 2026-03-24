@@ -50,7 +50,7 @@ export function createRequestLogger(
  * Log request start
  */
 export function logRequestStart(logger: Logger, request: NextRequest): void {
-  logger.info({
+  logger.info("Request started", {
     event: "request.start",
     method: request.method,
     path: request.nextUrl.pathname,
@@ -69,7 +69,7 @@ export function logRequestEnd(
 ): void {
   const duration = Date.now() - startTime;
 
-  logger.info({
+  logger.info("Request completed", {
     event: "request.end",
     method: request.method,
     path: request.nextUrl.pathname,
@@ -89,7 +89,7 @@ export function logRequestError(
 ): void {
   const duration = Date.now() - startTime;
 
-  logger.error({
+  logger.error("Request failed", {
     event: "request.error",
     method: request.method,
     path: request.nextUrl.pathname,
@@ -129,9 +129,14 @@ export async function withLogging<T extends NextResponse>(
 
     logRequestEnd(logger, request, response, startTime);
 
+    // Flush logs to Axiom (important for serverless)
+    await logger.flush();
+
     return response;
   } catch (error) {
     logRequestError(logger, request, error, startTime);
+    // Flush error logs before throwing
+    await logger.flush();
     throw error;
   }
 }

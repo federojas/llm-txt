@@ -105,17 +105,15 @@ export class Crawler {
         const crawlDelaySeconds = this.robotsDirectives.getCrawlDelay();
         if (crawlDelaySeconds) {
           this.crawlDelay = crawlDelaySeconds * 1000; // Convert to milliseconds
-          this.logger.info({
+          this.logger.info(`Respecting crawl-delay: ${crawlDelaySeconds}s`, {
             event: "crawler.robots_txt.crawl_delay",
             crawlDelaySeconds,
-            message: `Respecting crawl-delay: ${crawlDelaySeconds}s`,
           });
         }
       } catch (error) {
-        this.logger.warn({
+        this.logger.warn("Failed to fetch robots.txt, continuing without it", {
           event: "crawler.robots_txt.fetch_failed",
           error: error instanceof Error ? error.message : String(error),
-          message: "Failed to fetch robots.txt, continuing without it",
         });
         // Continue crawling even if robots.txt fails
       }
@@ -134,12 +132,11 @@ export class Crawler {
 
       // No validation needed - both strategies handle empty results gracefully
 
-      this.logger.info({
+      this.logger.info("Crawl complete", {
         event: "crawler.crawl.complete",
         pagesFound: this.results.length,
         sitemapEntries: this.sitemapData.size,
         usedSitemap,
-        message: "Crawl complete",
       });
 
       this.updateProgress({
@@ -185,11 +182,10 @@ export class Crawler {
     );
     if (sitemapUrls.length === 0) return false;
 
-    this.logger.info({
+    this.logger.info(`Found ${sitemapUrls.length} URLs in sitemap`, {
       event: "crawler.sitemap.found",
       urlCount: sitemapUrls.length,
       sitemapUrl,
-      message: `Found ${sitemapUrls.length} URLs in sitemap`,
     });
 
     // Sort by priority (highest first) to crawl important pages before hitting limit
@@ -201,11 +197,10 @@ export class Crawler {
       this.sitemapData.set(normalizeUrl(sitemapUrl.url), sitemapUrl);
     }
 
-    this.logger.info({
+    this.logger.info("Processing sitemap URLs", {
       event: "crawler.sitemap.processing",
       urlCount: sitemapUrls.length,
       pagesBefore: this.results.length,
-      message: "Processing sitemap URLs",
     });
 
     // Process URLs from sitemap in batches
@@ -222,10 +217,9 @@ export class Crawler {
       );
     }
 
-    this.logger.info({
+    this.logger.info("Sitemap processing complete", {
       event: "crawler.sitemap.complete",
       pagesAfter: this.results.length,
-      message: "Sitemap processing complete",
     });
 
     return true;
@@ -286,7 +280,7 @@ export class Crawler {
   ): Promise<PageMetadata | null> {
     // Skip language variant URLs (like /intl/ar/, /intl/ALL_bg/)
     if (isLanguageVariant(url)) {
-      this.logger.debug({
+      this.logger.debug("Skipping language variant URL", {
         event: "crawler.fetch.skip.language_variant",
         url,
         reason: "Language variant URL",
@@ -294,7 +288,7 @@ export class Crawler {
       return null;
     }
 
-    this.logger.debug({
+    this.logger.debug("Fetching page", {
       event: "crawler.fetch.start",
       url,
       depth,
@@ -308,7 +302,7 @@ export class Crawler {
     // Check include/exclude patterns (skip homepage to ensure we always get at least one page)
     const isHomepage = normalizeUrl(url) === normalizeUrl(this.config.url);
     if (!isHomepage && this.shouldFilterUrl(url)) {
-      this.logger.debug({
+      this.logger.debug("Skipping URL excluded by pattern filter", {
         event: "crawler.fetch.skip.pattern_filter",
         url,
         reason: "Excluded by include/exclude patterns",
@@ -319,7 +313,7 @@ export class Crawler {
     // Check robots.txt (skip homepage to ensure we always get at least one page)
     if (!isHomepage && this.robotsDirectives) {
       if (!this.robotsDirectives.isAllowed(url)) {
-        this.logger.debug({
+        this.logger.debug("Skipping URL disallowed by robots.txt", {
           event: "crawler.fetch.skip.robots_txt",
           url,
           reason: "Disallowed by robots.txt",
@@ -361,37 +355,39 @@ export class Crawler {
 
       // Enhanced error handling for bot protection and rate limiting
       if (response.status === 403) {
-        this.logger.warn({
-          event: "crawler.fetch.http_403",
-          url,
-          status: 403,
-          message:
-            "Site blocked access - may be bot protection, geographic restrictions, or rate limiting",
-          suggestions: [
-            "Check if site has sitemap.xml (automatically used)",
-            "Contact site owner for API access",
-            "Manual submission of llms.txt",
-          ],
-        });
+        this.logger.warn(
+          "Site blocked access - may be bot protection, geographic restrictions, or rate limiting",
+          {
+            event: "crawler.fetch.http_403",
+            url,
+            status: 403,
+            suggestions: [
+              "Check if site has sitemap.xml (automatically used)",
+              "Contact site owner for API access",
+              "Manual submission of llms.txt",
+            ],
+          }
+        );
         return null;
       }
 
       if (response.status === 429) {
-        this.logger.warn({
-          event: "crawler.fetch.http_429",
-          url,
-          status: 429,
-          crawlDelaySeconds: this.crawlDelay
-            ? this.crawlDelay / 1000
-            : undefined,
-          message:
-            "Rate limited by site despite respecting 5 req/s max and robots.txt crawl-delay",
-          suggestions: [
-            "Using sitemap.xml instead (automatically attempted)",
-            "Reducing maxPages in request",
-            "Trying again later",
-          ],
-        });
+        this.logger.warn(
+          "Rate limited by site despite respecting 5 req/s max and robots.txt crawl-delay",
+          {
+            event: "crawler.fetch.http_429",
+            url,
+            status: 429,
+            crawlDelaySeconds: this.crawlDelay
+              ? this.crawlDelay / 1000
+              : undefined,
+            suggestions: [
+              "Using sitemap.xml instead (automatically attempted)",
+              "Reducing maxPages in request",
+              "Trying again later",
+            ],
+          }
+        );
         return null;
       }
 
@@ -423,7 +419,7 @@ export class Crawler {
 
       // Skip if we've seen this exact content before
       if (this.contentHashes.has(contentHash)) {
-        this.logger.debug({
+        this.logger.debug("Skipping duplicate content", {
           event: "crawler.fetch.skip.duplicate_content",
           url,
           contentHash,
@@ -454,7 +450,7 @@ export class Crawler {
       if (!isHomepage) {
         const shouldSkip = this.shouldSkipPage(detectedLang, url);
         if (shouldSkip) {
-          this.logger.debug({
+          this.logger.debug("Skipping page by language filter", {
             event: "crawler.fetch.skip.language_filter",
             url,
             detectedLanguage: detectedLang,
@@ -471,7 +467,7 @@ export class Crawler {
         metadata.sitemapPriority = sitemapInfo.priority;
       }
 
-      this.logger.debug({
+      this.logger.debug("Page fetched successfully", {
         event: "crawler.fetch.success",
         url,
         depth,
@@ -493,7 +489,7 @@ export class Crawler {
 
       return metadata;
     } catch (error) {
-      this.logger.error({
+      this.logger.error("Failed to fetch page", {
         event: "crawler.fetch.error",
         url,
         depth,
@@ -561,18 +557,20 @@ export class Crawler {
       if (totalProcessed >= 2 && this.englishPagesFound === 0) {
         if (!this.relaxedLanguageMode) {
           this.relaxedLanguageMode = true;
-          this.logger.warn({
-            event: "crawler.language.relaxed_mode",
-            totalProcessed,
-            detectedLanguage: detectedLang,
-            message: `No English content found after ${totalProcessed} pages. Accepting primary site language (${detectedLang}).`,
-          });
+          this.logger.warn(
+            `No English content found after ${totalProcessed} pages. Accepting primary site language (${detectedLang}).`,
+            {
+              event: "crawler.language.relaxed_mode",
+              totalProcessed,
+              detectedLanguage: detectedLang,
+            }
+          );
         }
         return false; // Accept non-English page
       }
 
       // Otherwise, skip non-English pages (prefer English)
-      this.logger.debug({
+      this.logger.debug("Skipping non-English page", {
         event: "crawler.language.skip_non_english",
         url,
         detectedLanguage: detectedLang,

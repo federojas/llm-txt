@@ -83,13 +83,13 @@ export function withRateLimit<T extends unknown[]>(
     if (globalLimiter) {
       const globalResult = await globalLimiter.limit("global");
       if (!globalResult.success) {
-        logger.warn({
+        logger.warn("Global rate limit exceeded", {
           event: "rate_limit.global.exceeded",
           ip,
           path: request.nextUrl.pathname,
           resetTime: new Date(globalResult.reset).toISOString(),
-          message: "Global rate limit exceeded",
         });
+        await logger.flush();
         return rateLimitExceededResponse(globalResult.reset);
       }
     }
@@ -99,15 +99,15 @@ export function withRateLimit<T extends unknown[]>(
 
     // Rate limit exceeded
     if (!success) {
-      logger.warn({
+      logger.warn("Per-IP rate limit exceeded", {
         event: "rate_limit.ip.exceeded",
         ip,
         path: request.nextUrl.pathname,
         method: request.method,
         limit,
         resetTime: new Date(reset).toISOString(),
-        message: "Per-IP rate limit exceeded",
       });
+      await logger.flush();
       return rateLimitExceededResponse(reset);
     }
 

@@ -47,7 +47,7 @@ export const processCrawl = inngest.createFunction(
     });
 
     try {
-      logger.info({
+      logger.info("Inngest job started", {
         event: "inngest.job.start",
         jobId,
         url,
@@ -58,10 +58,9 @@ export const processCrawl = inngest.createFunction(
 
       // Step 1: Update job to PROCESSING
       await step.run("start-processing", async () => {
-        logger.info({
+        logger.info("Job started processing", {
           event: "inngest.job.processing",
           jobId,
-          message: "Job started processing",
         });
         return db.crawlJob.update({
           where: { id: jobId },
@@ -75,7 +74,7 @@ export const processCrawl = inngest.createFunction(
       // Step 2: Execute the crawl (this is your existing business logic)
       const result = await step.run("crawl-website", async () => {
         const startTime = Date.now();
-        logger.info({
+        logger.info("Starting website crawl", {
           event: "inngest.crawl.start",
           jobId,
           url,
@@ -95,7 +94,7 @@ export const processCrawl = inngest.createFunction(
         });
 
         const duration = Date.now() - startTime;
-        logger.info({
+        logger.info("Crawl completed successfully", {
           event: "inngest.crawl.complete",
           jobId,
           url,
@@ -108,7 +107,7 @@ export const processCrawl = inngest.createFunction(
 
       // Step 3: Save result to database
       await step.run("complete-job", async () => {
-        logger.info({
+        logger.info("Job completed successfully", {
           event: "inngest.job.complete",
           jobId,
           pagesFound: result.stats.pagesFound,
@@ -125,9 +124,10 @@ export const processCrawl = inngest.createFunction(
         });
       });
 
+      await logger.flush();
       return { success: true, jobId };
     } catch (error) {
-      logger.error({
+      logger.error("Job failed", {
         event: "inngest.job.failed",
         jobId,
         url,
@@ -147,6 +147,9 @@ export const processCrawl = inngest.createFunction(
           },
         });
       });
+
+      // Flush logs before throwing
+      await logger.flush();
 
       // Re-throw to mark function as failed (triggers retries)
       throw error;

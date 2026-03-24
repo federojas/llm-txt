@@ -20,7 +20,7 @@ export const GET = withRateLimit(
     try {
       const { id } = await params;
 
-      logger.debug({
+      logger.debug("Querying job status", {
         event: "api.job.status.query",
         jobId: id,
       });
@@ -30,11 +30,11 @@ export const GET = withRateLimit(
       });
 
       if (!job) {
-        logger.warn({
+        logger.warn("Job not found", {
           event: "api.job.status.not_found",
           jobId: id,
-          message: "Job not found",
         });
+        await logger.flush();
         return NextResponse.json(
           {
             success: false,
@@ -47,12 +47,13 @@ export const GET = withRateLimit(
         );
       }
 
-      logger.info({
+      logger.info("Job status retrieved successfully", {
         event: "api.job.status.success",
         jobId: id,
         status: job.status,
       });
 
+      await logger.flush();
       return NextResponse.json({
         success: true,
         data: {
@@ -66,12 +67,12 @@ export const GET = withRateLimit(
         },
       });
     } catch (error) {
-      logger.error({
+      logger.error("Failed to fetch job status", {
         event: "api.job.status.error",
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        message: "Failed to fetch job status",
       });
+      await logger.flush();
       return NextResponse.json(
         {
           success: false,
