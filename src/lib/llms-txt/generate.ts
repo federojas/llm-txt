@@ -16,6 +16,7 @@ import { CRAWL_LIMITS } from "@/lib/crawling/validation";
 import { NotFoundError, InternalServerError } from "@/lib/api";
 import { CrawlConfig, PageMetadata } from "@/lib/types";
 import { GenerateRequest, GenerateResponseData } from "@/lib/api";
+import { createLogger } from "@/lib/logger";
 
 export class GenerateLlmsTxt {
   private crawler?: Crawler; // Store crawler instance to access sitemapData
@@ -24,7 +25,18 @@ export class GenerateLlmsTxt {
    * Execute the use case: generate llms.txt content for a given URL with options
    */
   async execute(request: GenerateRequest): Promise<GenerateResponseData> {
+    const logger = createLogger({ url: request.url });
+    const startTime = Date.now();
+
     try {
+      logger.info({
+        event: "generate.start",
+        url: request.url,
+        maxPages: request.maxPages,
+        maxDepth: request.maxDepth,
+        generationMode: request.generationMode,
+      });
+
       // Build configuration from request
       const config = this.buildConfig(request);
 
@@ -33,6 +45,11 @@ export class GenerateLlmsTxt {
 
       // Validate results
       if (pages.length === 0) {
+        logger.warn({
+          event: "generate.no_pages_found",
+          url: request.url,
+          message: "Could not crawl any pages from the provided URL",
+        });
         throw new NotFoundError(
           "No pages found",
           "Could not crawl any pages from the provided URL"
@@ -41,6 +58,15 @@ export class GenerateLlmsTxt {
 
       // Generate llms.txt content (passes request for user overrides)
       const content = await this.generateContent(pages, request);
+
+      const duration = Date.now() - startTime;
+      logger.info({
+        event: "generate.success",
+        url: request.url,
+        pagesFound: pages.length,
+        duration,
+        contentLength: content.length,
+      });
 
       // Return structured response
       return {
@@ -51,6 +77,15 @@ export class GenerateLlmsTxt {
         },
       };
     } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error({
+        event: "generate.error",
+        url: request.url,
+        duration,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
       // Re-throw known errors
       if (error instanceof NotFoundError) {
         throw error;
@@ -160,11 +195,17 @@ export class GenerateLlmsTxt {
     // Pattern approach works for all languages and saves API calls
     const titleCleaning = new PatternTitleCleaner();
 
-    console.log(
-      isAiMode
-        ? "[Generation Mode] ai mode: AI for site summary (1), section clustering (1), page descriptions (~50)"
-        : "[Generation Mode] metadata mode: AI for site summary (1), section clustering (1), HTML meta for pages (0)"
-    );
+    const logger = createLogger({ url: request.url });
+    logger.info({
+      event: "generate.mode",
+      generationMode,
+      apiCalls: isAiMode
+        ? "site summary (1) + section clustering (1) + page descriptions (~50)"
+        : "site summary (1) + section clustering (1) + HTML meta for pages (0)",
+      message: isAiMode
+        ? "AI mode: AI for site summary, section clustering, and page descriptions"
+        : "Metadata mode: AI for site summary and section clustering, HTML meta for pages",
+    });
 
     // Create formatter service with focused dependencies
     const formatterService = new Formatter(

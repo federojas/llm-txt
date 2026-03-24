@@ -7,6 +7,7 @@ import axios, {
 } from "axios";
 import { USER_AGENT } from "@/lib/config/constants";
 import { isSSRFSafe, getSSRFBlockReason } from "@/lib/api/ssrf";
+import { getLogger } from "@/lib/logger";
 
 /**
  * HTTP Client Interface
@@ -88,13 +89,16 @@ export interface Logger {
 }
 
 /**
- * Default console logger implementation
+ * Default structured logger implementation using Pino
  */
-const defaultLogger: Logger = {
-  log: (msg: string) => console.log(msg),
-  error: (msg: string) => console.error(msg),
-  warn: (msg: string) => console.warn(msg),
-};
+const defaultLogger: Logger = (() => {
+  const structuredLogger = getLogger();
+  return {
+    log: (msg: string) => structuredLogger.debug(msg),
+    error: (msg: string) => structuredLogger.error(msg),
+    warn: (msg: string) => structuredLogger.warn(msg),
+  };
+})();
 
 /**
  * Rate limiter for controlling request frequency using token bucket algorithm

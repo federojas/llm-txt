@@ -11,6 +11,7 @@ import { ILanguageDetector } from "./language-detector";
 import { LanguageDetector } from "./language-detector";
 import { createHash } from "crypto";
 import picomatch from "picomatch";
+import { createLogger, type Logger } from "@/lib/logger";
 
 /**
  * Crawler Service (Application Layer)
@@ -36,6 +37,7 @@ export class Crawler {
   private crawlDelay?: number; // Delay between requests (milliseconds)
   private lastRequestTime = 0; // Track last request for crawl delay
   private sitemapData = new Map<string, SitemapUrl>(); // URL -> sitemap metadata
+  private logger: Logger; // Structured logger
 
   // Pattern filtering (inspired by llmstxt tool)
   private isExcluded?: (path: string) => boolean; // Exclude pattern matcher
@@ -61,6 +63,13 @@ export class Crawler {
     // Default to "prefer-english" strategy if not specified
     this.config.languageStrategy = config.languageStrategy || "prefer-english";
     this.languageDetector = languageDetector || new LanguageDetector();
+
+    // Initialize structured logger
+    this.logger = createLogger({
+      url: config.url,
+      maxPages: config.maxPages,
+      maxDepth: config.maxDepth,
+    });
 
     // Initialize pattern matchers (inspired by llmstxt tool)
     // Use picomatch for glob pattern matching: "**/blog/**", "**/docs/**"
@@ -96,12 +105,18 @@ export class Crawler {
         const crawlDelaySeconds = this.robotsDirectives.getCrawlDelay();
         if (crawlDelaySeconds) {
           this.crawlDelay = crawlDelaySeconds * 1000; // Convert to milliseconds
-          console.log(
-            `[robots.txt] Respecting crawl-delay: ${crawlDelaySeconds}s`
-          );
+          this.logger.info({
+            event: "crawler.robots_txt.crawl_delay",
+            crawlDelaySeconds,
+            message: `Respecting crawl-delay: ${crawlDelaySeconds}s`,
+          });
         }
       } catch (error) {
-        console.warn(`[robots.txt] Failed to fetch robots.txt:`, error);
+        this.logger.warn({
+          event: "crawler.robots_txt.fetch_failed",
+          error: error instanceof Error ? error.message : String(error),
+          message: "Failed to fetch robots.txt, continuing without it",
+        });
         // Continue crawling even if robots.txt fails
       }
 
@@ -119,10 +134,13 @@ export class Crawler {
 
       // No validation needed - both strategies handle empty results gracefully
 
-      console.log(`\n[Crawler] Crawl complete:`);
-      console.log(`  - Pages found: ${this.results.length}`);
-      console.log(`  - Sitemap entries: ${this.sitemapData.size}`);
-      console.log(`  - Used sitemap: ${usedSitemap ? "yes" : "no"}\n`);
+      this.logger.info({
+        event: "crawler.crawl.complete",
+        pagesFound: this.results.length,
+        sitemapEntries: this.sitemapData.size,
+        usedSitemap,
+        message: "Crawl complete",
+      });
 
       this.updateProgress({
         status: "complete",
@@ -167,7 +185,12 @@ export class Crawler {
     );
     if (sitemapUrls.length === 0) return false;
 
-    console.log(`[Sitemap] Found ${sitemapUrls.length} URLs in sitemap`);
+    this.logger.info({
+      event: "crawler.sitemap.found",
+      urlCount: sitemapUrls.length,
+      sitemapUrl,
+      message: `Found ${sitemapUrls.length} URLs in sitemap`,
+    });
 
     // Sort by priority (highest first) to crawl important pages before hitting limit
     // Priority is 0.0-1.0, with 1.0 being highest priority
@@ -178,9 +201,12 @@ export class Crawler {
       this.sitemapData.set(normalizeUrl(sitemapUrl.url), sitemapUrl);
     }
 
-    console.log(
-      `[Sitemap] Processing ${sitemapUrls.length} URLs (before: ${this.results.length} pages)...`
-    );
+    this.logger.info({
+      event: "crawler.sitemap.processing",
+      urlCount: sitemapUrls.length,
+      pagesBefore: this.results.length,
+      message: "Processing sitemap URLs",
+    });
 
     // Process URLs from sitemap in batches
     const batches = this.chunkArray(sitemapUrls, this.config.concurrency);
@@ -196,7 +222,11 @@ export class Crawler {
       );
     }
 
-    console.log(`[Sitemap] After processing: ${this.results.length} pages\n`);
+    this.logger.info({
+      event: "crawler.sitemap.complete",
+      pagesAfter: this.results.length,
+      message: "Sitemap processing complete",
+    });
 
     return true;
   }
@@ -256,11 +286,19 @@ export class Crawler {
   ): Promise<PageMetadata | null> {
     // Skip language variant URLs (like /intl/ar/, /intl/ALL_bg/)
     if (isLanguageVariant(url)) {
-      console.log(`[fetchAndParse] Skipped ${url} - language variant`);
+      this.logger.debug({
+        event: "crawler.fetch.skip.language_variant",
+        url,
+        reason: "Language variant URL",
+      });
       return null;
     }
 
-    console.log(`[fetchAndParse] Processing: ${url}`);
+    this.logger.debug({
+      event: "crawler.fetch.start",
+      url,
+      depth,
+    });
     const normalized = normalizeUrl(url);
 
     // Skip if already visited
@@ -270,14 +308,22 @@ export class Crawler {
     // Check include/exclude patterns (skip homepage to ensure we always get at least one page)
     const isHomepage = normalizeUrl(url) === normalizeUrl(this.config.url);
     if (!isHomepage && this.shouldFilterUrl(url)) {
-      console.log(`[Pattern Filter] Skipping URL: ${url}`);
+      this.logger.debug({
+        event: "crawler.fetch.skip.pattern_filter",
+        url,
+        reason: "Excluded by include/exclude patterns",
+      });
       return null;
     }
 
     // Check robots.txt (skip homepage to ensure we always get at least one page)
     if (!isHomepage && this.robotsDirectives) {
       if (!this.robotsDirectives.isAllowed(url)) {
-        console.log(`[robots.txt] Skipping disallowed URL: ${url}`);
+        this.logger.debug({
+          event: "crawler.fetch.skip.robots_txt",
+          url,
+          reason: "Disallowed by robots.txt",
+        });
         return null;
       }
     }
@@ -315,30 +361,37 @@ export class Crawler {
 
       // Enhanced error handling for bot protection and rate limiting
       if (response.status === 403) {
-        console.warn(
-          `[HTTP 403] Site blocked access to ${url}. This may be due to:\n` +
-            `  • Bot protection (Cloudflare, reCAPTCHA)\n` +
-            `  • Geographic restrictions\n` +
-            `  • Rate limiting\n` +
-            `Suggestions:\n` +
-            `  1. Check if site has sitemap.xml (automatically used)\n` +
-            `  2. Contact site owner for API access\n` +
-            `  3. Manual submission of llms.txt`
-        );
+        this.logger.warn({
+          event: "crawler.fetch.http_403",
+          url,
+          status: 403,
+          message:
+            "Site blocked access - may be bot protection, geographic restrictions, or rate limiting",
+          suggestions: [
+            "Check if site has sitemap.xml (automatically used)",
+            "Contact site owner for API access",
+            "Manual submission of llms.txt",
+          ],
+        });
         return null;
       }
 
       if (response.status === 429) {
-        console.warn(
-          `[HTTP 429] Rate limited by ${url}. The crawler is already respecting:\n` +
-            `  • 5 requests/second max rate\n` +
-            `  • robots.txt crawl-delay${this.crawlDelay ? ` (${this.crawlDelay / 1000}s)` : ""}\n` +
-            `  • Exponential backoff retries\n` +
-            `The site may require slower crawling. Consider:\n` +
-            `  1. Using sitemap.xml instead (automatically attempted)\n` +
-            `  2. Reducing maxPages in your request\n` +
-            `  3. Trying again later`
-        );
+        this.logger.warn({
+          event: "crawler.fetch.http_429",
+          url,
+          status: 429,
+          crawlDelaySeconds: this.crawlDelay
+            ? this.crawlDelay / 1000
+            : undefined,
+          message:
+            "Rate limited by site despite respecting 5 req/s max and robots.txt crawl-delay",
+          suggestions: [
+            "Using sitemap.xml instead (automatically attempted)",
+            "Reducing maxPages in request",
+            "Trying again later",
+          ],
+        });
         return null;
       }
 
@@ -370,9 +423,12 @@ export class Crawler {
 
       // Skip if we've seen this exact content before
       if (this.contentHashes.has(contentHash)) {
-        console.log(
-          `[Duplicate Content] Skipping ${url} - content matches existing page`
-        );
+        this.logger.debug({
+          event: "crawler.fetch.skip.duplicate_content",
+          url,
+          contentHash,
+          reason: "Content matches existing page",
+        });
         return null;
       }
       this.contentHashes.add(contentHash);
@@ -398,9 +454,13 @@ export class Crawler {
       if (!isHomepage) {
         const shouldSkip = this.shouldSkipPage(detectedLang, url);
         if (shouldSkip) {
-          console.log(
-            `[fetchAndParse] Skipped ${url} - language filter (detected: ${detectedLang})`
-          );
+          this.logger.debug({
+            event: "crawler.fetch.skip.language_filter",
+            url,
+            detectedLanguage: detectedLang,
+            strategy: this.config.languageStrategy,
+            reason: "Language filter",
+          });
           return null;
         }
       }
@@ -411,9 +471,14 @@ export class Crawler {
         metadata.sitemapPriority = sitemapInfo.priority;
       }
 
-      console.log(
-        `[fetchAndParse] ✓ Added ${url} to results (total: ${this.results.length})`
-      );
+      this.logger.debug({
+        event: "crawler.fetch.success",
+        url,
+        depth,
+        totalPages: this.results.length + 1,
+        title: metadata.title,
+        sitemapPriority: metadata.sitemapPriority,
+      });
       this.results.push(metadata);
 
       // Add internal links to queue if within depth limit
@@ -428,7 +493,13 @@ export class Crawler {
 
       return metadata;
     } catch (error) {
-      console.error(`Failed to fetch ${url}:`, error);
+      this.logger.error({
+        event: "crawler.fetch.error",
+        url,
+        depth,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       return null;
     }
   }
@@ -490,18 +561,23 @@ export class Crawler {
       if (totalProcessed >= 2 && this.englishPagesFound === 0) {
         if (!this.relaxedLanguageMode) {
           this.relaxedLanguageMode = true;
-          console.warn(
-            `[prefer-english] No English content found after ${totalProcessed} pages. ` +
-              `Accepting primary site language (${detectedLang}).`
-          );
+          this.logger.warn({
+            event: "crawler.language.relaxed_mode",
+            totalProcessed,
+            detectedLanguage: detectedLang,
+            message: `No English content found after ${totalProcessed} pages. Accepting primary site language (${detectedLang}).`,
+          });
         }
         return false; // Accept non-English page
       }
 
       // Otherwise, skip non-English pages (prefer English)
-      console.log(
-        `[prefer-english] Skipping non-English page (${detectedLang}): ${url}`
-      );
+      this.logger.debug({
+        event: "crawler.language.skip_non_english",
+        url,
+        detectedLanguage: detectedLang,
+        strategy: "prefer-english",
+      });
       return true;
     }
 

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getPollJobLimiter } from "@/lib/api/rate-limit";
 import { withRateLimit } from "@/lib/api/middleware/rate-limit";
+import { createRequestLogger } from "@/lib/api/middleware/logger";
 
 export const GET = withRateLimit(
   getPollJobLimiter,
@@ -14,13 +15,26 @@ export const GET = withRateLimit(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
   ) => {
+    const { logger } = createRequestLogger(request);
+
     try {
       const { id } = await params;
+
+      logger.debug({
+        event: "api.job.status.query",
+        jobId: id,
+      });
+
       const job = await db.crawlJob.findUnique({
         where: { id },
       });
 
       if (!job) {
+        logger.warn({
+          event: "api.job.status.not_found",
+          jobId: id,
+          message: "Job not found",
+        });
         return NextResponse.json(
           {
             success: false,
@@ -32,6 +46,12 @@ export const GET = withRateLimit(
           { status: 404 }
         );
       }
+
+      logger.info({
+        event: "api.job.status.success",
+        jobId: id,
+        status: job.status,
+      });
 
       return NextResponse.json({
         success: true,
@@ -46,7 +66,12 @@ export const GET = withRateLimit(
         },
       });
     } catch (error) {
-      console.error("[Jobs API] Error:", error);
+      logger.error({
+        event: "api.job.status.error",
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        message: "Failed to fetch job status",
+      });
       return NextResponse.json(
         {
           success: false,

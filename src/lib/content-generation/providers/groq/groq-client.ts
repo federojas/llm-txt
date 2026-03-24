@@ -1,5 +1,6 @@
 import Groq from "groq-sdk";
 import { TokenBucketLimiter } from "../../shared/rate-limiter";
+import { getLogger } from "@/lib/logger";
 
 interface ModelConfig {
   name: string;
@@ -27,6 +28,7 @@ interface RateLimitState {
 export class GroqClient {
   private client: Groq;
   private rateLimiter: TokenBucketLimiter;
+  private logger = getLogger();
 
   private readonly models: ModelConfig[] = [
     {
@@ -83,6 +85,7 @@ export class GroqClient {
       client: Groq
     ) => Promise<{ data: T; response: Response }>
   ): Promise<T> {
+    const startTime = Date.now();
     await this.rateLimiter.waitForToken();
     this.checkProactiveSwitch();
 
@@ -92,16 +95,38 @@ export class GroqClient {
       const model = this.models[i];
 
       try {
+        this.logger.debug({
+          event: "groq.api.request",
+          model: model.name,
+          rpm: model.rpm,
+          tpm: model.tpm,
+        });
+
         const { data, response } = await apiCall(model.name, this.client);
+
+        const duration = Date.now() - startTime;
 
         // Update rate limit state from response headers
         this.updateRateLimitState(response);
 
+        this.logger.info({
+          event: "groq.api.success",
+          model: model.name,
+          duration,
+          remainingRequests: this.rateLimitState.remainingRequests,
+          remainingTokens: this.rateLimitState.remainingTokens,
+        });
+
         // Success! Update current model if we switched
         if (i !== this.currentModelIndex) {
-          console.log(
-            `[GroqClient] Successfully switched to model: ${model.name} (${model.rpd} RPD, ${model.tpd} TPD)`
-          );
+          this.logger.info({
+            event: "groq.model.switch",
+            from: this.models[this.currentModelIndex].name,
+            to: model.name,
+            rpd: model.rpd,
+            tpd: model.tpd,
+            message: `Successfully switched to model: ${model.name}`,
+          });
           this.currentModelIndex = i;
         }
 
@@ -121,24 +146,45 @@ export class GroqClient {
 
         if (isRateLimit) {
           const retryAfter = this.extractRetryAfter(error);
+          const duration = Date.now() - startTime;
 
           if (i < this.models.length - 1) {
             const nextModel = this.models[i + 1];
-            console.warn(
-              `[GroqClient] Rate limit hit for ${model.name}${retryAfter ? ` (retry after ${retryAfter}s)` : ""}`,
-              `→ Switching to ${nextModel.name}`
-            );
+            this.logger.warn({
+              event: "groq.rate_limit.switch",
+              model: model.name,
+              nextModel: nextModel.name,
+              retryAfter,
+              duration,
+              message: `Rate limit hit for ${model.name}, switching to ${nextModel.name}`,
+            });
             this.currentModelIndex = i + 1;
             continue;
           } else {
             const waitTime = retryAfter
               ? `${retryAfter}s`
               : this.rateLimitState.resetRequests || "a few minutes";
+            this.logger.error({
+              event: "groq.rate_limit.exhausted",
+              model: model.name,
+              retryAfter,
+              resetTime: this.rateLimitState.resetRequests,
+              duration,
+              message: `All Groq models exhausted. Try again in: ${waitTime}`,
+            });
             throw new Error(
               `All Groq models exhausted. Rate limits exceeded. Try again in: ${waitTime}`
             );
           }
         }
+
+        // Non-rate-limit error: log and don't retry
+        this.logger.error({
+          event: "groq.api.error",
+          model: model.name,
+          error: lastError?.message,
+          duration: Date.now() - startTime,
+        });
 
         // Non-rate-limit error: don't retry
         break;
@@ -169,15 +215,22 @@ export class GroqClient {
         };
 
         if (this.rateLimitState.remainingRequests < 100) {
-          console.log(
-            `[GroqClient] Rate limits for ${this.models[this.currentModelIndex].name}:`,
-            `Requests: ${this.rateLimitState.remainingRequests} remaining,`,
-            `Tokens: ${this.rateLimitState.remainingTokens} remaining`
-          );
+          this.logger.debug({
+            event: "groq.rate_limit.low",
+            model: this.models[this.currentModelIndex].name,
+            remainingRequests: this.rateLimitState.remainingRequests,
+            remainingTokens: this.rateLimitState.remainingTokens,
+            resetRequests: this.rateLimitState.resetRequests,
+            message: `Low rate limit: ${this.rateLimitState.remainingRequests} requests remaining`,
+          });
         }
       }
     } catch (error) {
-      console.debug("[GroqClient] Error parsing rate limit headers:", error);
+      this.logger.debug({
+        event: "groq.rate_limit.parse_error",
+        error: error instanceof Error ? error.message : String(error),
+        message: "Error parsing rate limit headers",
+      });
     }
   }
 
@@ -189,10 +242,13 @@ export class GroqClient {
       this.currentModelIndex < this.models.length - 1
     ) {
       const nextModel = this.models[this.currentModelIndex + 1];
-      console.warn(
-        `[GroqClient] Proactively switching from ${currentModel.name} to ${nextModel.name}:`,
-        `Only ${this.rateLimitState.remainingRequests} requests remaining`
-      );
+      this.logger.warn({
+        event: "groq.proactive_switch",
+        from: currentModel.name,
+        to: nextModel.name,
+        remainingRequests: this.rateLimitState.remainingRequests,
+        message: `Proactively switching from ${currentModel.name} to ${nextModel.name}`,
+      });
       this.currentModelIndex++;
       this.rateLimitState.remainingRequests = Infinity;
       this.rateLimitState.remainingTokens = Infinity;

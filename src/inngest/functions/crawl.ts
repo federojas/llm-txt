@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { generateLlmsTxtUseCase } from "@/lib/llms-txt";
 import { JobStatus } from "@prisma/client";
 import { CRAWL_REQUESTED } from "../events";
+import { createLogger } from "@/lib/logger";
 
 /**
  * Process Crawl Job
@@ -34,11 +35,34 @@ export const processCrawl = inngest.createFunction(
       projectName,
       projectDescription,
       titleCleanup,
+      correlationId, // Receive correlation ID from API for distributed tracing
     } = event.data;
 
+    // Create logger with job context for distributed tracing
+    // Use correlation ID from API if available for linking logs across services
+    const logger = createLogger({
+      jobId,
+      url,
+      correlationId, // Link Inngest logs back to API request
+    });
+
     try {
+      logger.info({
+        event: "inngest.job.start",
+        jobId,
+        url,
+        maxPages,
+        maxDepth,
+        generationMode,
+      });
+
       // Step 1: Update job to PROCESSING
       await step.run("start-processing", async () => {
+        logger.info({
+          event: "inngest.job.processing",
+          jobId,
+          message: "Job started processing",
+        });
         return db.crawlJob.update({
           where: { id: jobId },
           data: {
@@ -50,7 +74,14 @@ export const processCrawl = inngest.createFunction(
 
       // Step 2: Execute the crawl (this is your existing business logic)
       const result = await step.run("crawl-website", async () => {
-        return generateLlmsTxtUseCase.execute({
+        const startTime = Date.now();
+        logger.info({
+          event: "inngest.crawl.start",
+          jobId,
+          url,
+        });
+
+        const crawlResult = await generateLlmsTxtUseCase.execute({
           url,
           maxPages,
           maxDepth,
@@ -62,10 +93,27 @@ export const processCrawl = inngest.createFunction(
           projectDescription,
           titleCleanup,
         });
+
+        const duration = Date.now() - startTime;
+        logger.info({
+          event: "inngest.crawl.complete",
+          jobId,
+          url,
+          pagesFound: crawlResult.stats.pagesFound,
+          duration,
+        });
+
+        return crawlResult;
       });
 
       // Step 3: Save result to database
       await step.run("complete-job", async () => {
+        logger.info({
+          event: "inngest.job.complete",
+          jobId,
+          pagesFound: result.stats.pagesFound,
+        });
+
         return db.crawlJob.update({
           where: { id: jobId },
           data: {
@@ -79,6 +127,14 @@ export const processCrawl = inngest.createFunction(
 
       return { success: true, jobId };
     } catch (error) {
+      logger.error({
+        event: "inngest.job.failed",
+        jobId,
+        url,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
       // Handle failures: Update job to FAILED
       await step.run("mark-failed", async () => {
         return db.crawlJob.update({

@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientIp } from "@/lib/api/rate-limit";
 import type { Ratelimit } from "@upstash/ratelimit";
+import { getLogger } from "@/lib/logger";
 
 /**
  * Rate limit exceeded response
@@ -65,6 +66,8 @@ export function withRateLimit<T extends unknown[]>(
   getGlobalLimiter?: () => Promise<Ratelimit | null>
 ) {
   return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
+    const logger = getLogger();
+
     // Get limiters
     const limiter = await getLimiter();
     const globalLimiter = getGlobalLimiter ? await getGlobalLimiter() : null;
@@ -80,6 +83,13 @@ export function withRateLimit<T extends unknown[]>(
     if (globalLimiter) {
       const globalResult = await globalLimiter.limit("global");
       if (!globalResult.success) {
+        logger.warn({
+          event: "rate_limit.global.exceeded",
+          ip,
+          path: request.nextUrl.pathname,
+          resetTime: new Date(globalResult.reset).toISOString(),
+          message: "Global rate limit exceeded",
+        });
         return rateLimitExceededResponse(globalResult.reset);
       }
     }
@@ -89,6 +99,15 @@ export function withRateLimit<T extends unknown[]>(
 
     // Rate limit exceeded
     if (!success) {
+      logger.warn({
+        event: "rate_limit.ip.exceeded",
+        ip,
+        path: request.nextUrl.pathname,
+        method: request.method,
+        limit,
+        resetTime: new Date(reset).toISOString(),
+        message: "Per-IP rate limit exceeded",
+      });
       return rateLimitExceededResponse(reset);
     }
 
