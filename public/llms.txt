@@ -1,0 +1,63 @@
+# llms.txt Generator
+
+> Automated tool that generates llms.txt files for any website. Help Large Language Models better understand and interact with your website's content through AI-powered crawling and intelligent section discovery.
+
+## Overview
+
+- [llms.txt Generator](https://llm-txt-nine.vercel.app/): Web application for generating llms.txt files with async job processing and AI-powered content analysis
+- [GitHub Repository](https://github.com/federojas/llms-txt): Open-source implementation with Next.js 16, PostgreSQL, and Inngest for background job processing
+- [llms.txt Specification](https://llmstxt.org/): Official standard for providing structured website information to Large Language Models
+
+## Features
+
+- [Async Job Processing](https://llm-txt-nine.vercel.app/api/v1/llms-txt): Non-blocking REST API with PostgreSQL persistence and Inngest-powered background workers for scalable crawling
+- [AI-Powered Generation](https://github.com/federojas/llms-txt/tree/main/src/lib/content-generation): Uses Groq (Llama 3.3 70B) for business summaries, semantic section discovery, and intelligent title cleaning
+- [Smart Crawling](https://github.com/federojas/llms-txt/tree/main/src/lib/crawling): Multi-strategy crawler using sitemap.xml parsing and BFS traversal with robots.txt respect and rate limiting
+- [Quality Gates](https://github.com/federojas/llms-txt/blob/main/src/lib/llms-txt/quality-gates.ts): Link scoring system using sitemap priorities, depth analysis, and UGC detection to filter low-relevance content
+- [Configurable Modes](https://github.com/federojas/llms-txt/blob/main/src/lib/config/presets.ts): Choose between metadata mode (200 pages, HTML meta tags) or AI mode (50 pages, AI descriptions) with depth control
+
+## API Reference
+
+- [POST /api/v1/llms-txt](https://github.com/federojas/llms-txt/blob/main/src/app/api/v1/llms-txt/route.ts): Create generation job with URL, maxPages, maxDepth, and generation mode parameters
+- [GET /api/v1/jobs/:id](https://github.com/federojas/llms-txt/blob/main/src/app/api/v1/jobs/%5Bid%5D/route.ts): Poll job status with real-time progress tracking (PENDING → PROCESSING → COMPLETED/FAILED)
+- [POST /api/inngest](https://github.com/federojas/llms-txt/blob/main/src/app/api/inngest/route.ts): Inngest webhook endpoint for background job processing and retry handling
+
+## Architecture
+
+- [Frontend (Next.js 16 App Router)](https://github.com/federojas/llms-txt/tree/main/src/app): React 19 with TypeScript, TailwindCSS 4, Vercel Analytics, and real-time job status polling
+- [API Layer](https://github.com/federojas/llms-txt/tree/main/src/app/api): REST endpoints with Zod validation, rate limiting (Upstash Redis), and SSRF protection
+- [Background Jobs (Inngest)](https://github.com/federojas/llms-txt/tree/main/src/inngest): Async crawling with PostgreSQL job persistence, step functions, and automatic retry logic
+- [Database (PostgreSQL + Prisma)](https://github.com/federojas/llms-txt/tree/main/prisma): Job storage with status tracking, content caching, and Neon serverless integration
+- [Content Generation](https://github.com/federojas/llms-txt/tree/main/src/lib/content-generation): Factory pattern with AI providers (Groq) and deterministic fallbacks for resilience
+
+## Technical Implementation
+
+- [Crawler](https://github.com/federojas/llms-txt/blob/main/src/lib/crawling/crawler.ts): BFS-based web crawler with sitemap priority parsing, robots.txt compliance, and browser-like headers
+- [Link Scoring](https://github.com/federojas/llms-txt/blob/main/src/lib/crawling/link-scoring.ts): Multi-signal relevance scoring using sitemap priorities (40pts), depth (30pts), and robots.txt rules (20pts)
+- [Section Discovery](https://github.com/federojas/llms-txt/tree/main/src/lib/content-generation/providers): AI-powered semantic clustering with URL-structure fallback and generic section generation
+- [Quality Filters](https://github.com/federojas/llms-txt/blob/main/src/lib/llms-txt/quality-gates.ts): Deduplication, UGC detection, section merging, and optional content separation to ensure clean output
+- [URL Normalization](https://github.com/federojas/llms-txt/blob/main/src/lib/url/normalization.ts): Canonical URL handling with query parameter whitelisting to prevent duplicate link detection
+
+## Deployment
+
+- [Vercel Platform](https://vercel.com/new/clone?repository-url=https://github.com/federojas/llms-txt): One-click deployment with preview environments, edge functions, and automatic HTTPS
+- [Neon PostgreSQL](https://neon.tech/): Serverless Postgres with database branching for safe preview deployments and instant scaling
+- [Upstash Redis](https://upstash.com/): Serverless Redis for API rate limiting with global edge distribution
+- [Inngest Cloud](https://inngest.com/): Managed background job processing with retries, observability, and step-based execution
+- [Environment Setup](https://github.com/federojas/llms-txt/blob/main/.env.example): Configure GROQ_API_KEY, DATABASE_URL, and Redis credentials for production deployment
+
+## Development
+
+- [Local Setup Guide](https://github.com/federojas/llms-txt#-quick-start): Docker Compose configuration for local PostgreSQL, Inngest dev server, and Next.js with hot reload
+- [Testing Suite](https://github.com/federojas/llms-txt/tree/main/src/tests): Vitest unit tests for crawling, scoring, normalization, and HTTP client security
+- [Code Quality](https://github.com/federojas/llms-txt/blob/main/.lintstagedrc.json): ESLint + Prettier with pre-commit hooks, TypeScript strict mode, and automated formatting
+- [Database Migrations](https://github.com/federojas/llms-txt/tree/main/prisma/migrations): Prisma schema with migration tracking for safe production deployments
+
+## Optional
+
+- [Live Demo](https://llm-txt-nine.vercel.app/): Try the generator with any public website URL (supports up to 200 pages in metadata mode)
+- [llms.txt Spec](https://llmstxt.org/): Learn about the proposed standard for providing structured information to LLMs
+- [Groq Console](https://console.groq.com/keys): Get free API key for AI-powered content generation (30 requests/minute)
+- [GitHub Issues](https://github.com/federojas/llms-txt/issues): Report bugs, request features, or contribute to development
+- [Vercel Analytics](https://vercel.com/docs/analytics): Built-in page view tracking and Core Web Vitals monitoring
+- [Inngest Dashboard](https://inngest.com/docs): Monitor background jobs, view execution logs, and debug failed runs
