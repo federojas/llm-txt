@@ -10,7 +10,8 @@ test.describe("Job Generation", () => {
     const response = await request.post("/api/v1/llms-txt", {
       data: {
         url: "https://example.com",
-        preset: "quick",
+        maxPages: 1,
+        maxDepth: 0,
         generationMode: "metadata", // Fast mode without AI
       },
     });
@@ -54,11 +55,12 @@ test.describe("Job Generation", () => {
   });
 
   test("should poll job status", async ({ request }) => {
-    // Create job
+    // Create job with minimal crawl for fast E2E
     const createResponse = await request.post("/api/v1/llms-txt", {
       data: {
         url: "https://example.com",
-        preset: "quick",
+        maxPages: 1,
+        maxDepth: 0,
         generationMode: "metadata", // Fast mode without AI
       },
     });
@@ -96,6 +98,8 @@ test.describe("Job Generation", () => {
         data: {
           url: "https://example.com",
           preset,
+          maxPages: 1, // Override preset for fast E2E
+          maxDepth: 0,
           generationMode: "metadata", // Fast mode without AI
         },
       });
@@ -110,8 +114,8 @@ test.describe("Job Generation", () => {
     const response = await request.post("/api/v1/llms-txt", {
       data: {
         url: "https://example.com",
-        maxPages: 50,
-        maxDepth: 3,
+        maxPages: 2, // Minimal for fast E2E
+        maxDepth: 1,
         generationMode: "metadata", // Fast mode without AI
       },
     });

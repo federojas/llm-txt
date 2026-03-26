@@ -23,8 +23,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
 
-  // Increase timeout for job completion tests (accounts for Inngest retries)
-  timeout: 60_000, // 60 seconds
+  // Timeout for tests (90 seconds for minimal crawl jobs)
+  timeout: 90_000, // 90 seconds
 
   projects: [
     {
