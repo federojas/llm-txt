@@ -157,22 +157,18 @@ describe("LLMs.txt Generator", () => {
 `;
       const result = validateLlmsTxt(content);
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        "Missing required H1 heading (project name)"
-      );
+      expect(result.errors).toContain("Missing top-level heading (# Title)");
     });
 
-    it("should reject multiple H1s", () => {
-      const content = `# Project One
-
-# Project Two
+    it("should reject content that is too short", () => {
+      const content = `# Project
 
 ## Section
 `;
       const result = validateLlmsTxt(content);
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        "Multiple H1 headings found (only one allowed)"
+      expect(result.errors.some((e) => e.includes("Content too short"))).toBe(
+        true
       );
     });
   });

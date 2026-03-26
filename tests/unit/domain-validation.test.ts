@@ -30,6 +30,7 @@ describe("Domain Validation Rules", () => {
     it("should accept valid page counts", () => {
       expect(validateMaxPages(1)).toBe(true);
       expect(validateMaxPages(50)).toBe(true);
+      expect(validateMaxPages(100)).toBe(true);
       expect(validateMaxPages(200)).toBe(true);
     });
 
@@ -50,20 +51,25 @@ describe("Domain Validation Rules", () => {
   });
 
   describe("validateMaxDepth", () => {
-    it("should accept valid depth values", () => {
+    it("should accept valid depths", () => {
       expect(validateMaxDepth(1)).toBe(true);
       expect(validateMaxDepth(3)).toBe(true);
       expect(validateMaxDepth(5)).toBe(true);
     });
 
-    it("should reject depth values below minimum", () => {
+    it("should reject depths below minimum", () => {
       expect(validateMaxDepth(0)).toBe(false);
       expect(validateMaxDepth(-1)).toBe(false);
     });
 
-    it("should reject depth values above maximum", () => {
+    it("should reject depths above maximum", () => {
       expect(validateMaxDepth(6)).toBe(false);
       expect(validateMaxDepth(10)).toBe(false);
+    });
+
+    it("should reject non-integer values", () => {
+      expect(validateMaxDepth(3.5)).toBe(false);
+      expect(validateMaxDepth(NaN)).toBe(false);
     });
   });
 
@@ -71,21 +77,20 @@ describe("Domain Validation Rules", () => {
     it("should accept valid HTTP URLs", () => {
       expect(isValidUrl("http://example.com")).toBe(true);
       expect(isValidUrl("http://example.com/path")).toBe(true);
+      expect(isValidUrl("http://example.com:8080")).toBe(true);
     });
 
     it("should accept valid HTTPS URLs", () => {
       expect(isValidUrl("https://example.com")).toBe(true);
-      expect(isValidUrl("https://example.com/path?query=value")).toBe(true);
+      expect(isValidUrl("https://example.com/path")).toBe(true);
+      expect(isValidUrl("https://example.com:443")).toBe(true);
     });
 
     it("should reject invalid URLs", () => {
-      expect(isValidUrl("not-a-url")).toBe(false);
-      expect(isValidUrl("")).toBe(false);
-    });
-
-    it("should reject non-HTTP(S) protocols", () => {
+      expect(isValidUrl("not a url")).toBe(false);
+      expect(isValidUrl("example.com")).toBe(false);
       expect(isValidUrl("ftp://example.com")).toBe(false);
-      expect(isValidUrl("file:///path")).toBe(false);
+      expect(isValidUrl("")).toBe(false);
     });
   });
 });

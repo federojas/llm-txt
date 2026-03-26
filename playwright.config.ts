@@ -34,23 +34,10 @@ export default defineConfig({
   ],
 
   // Run dev server before tests
-  webServer: [
-    {
-      command: "npx inngest-cli@latest dev",
-      url: "http://localhost:8288",
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-    },
-    {
-      command: "npm run dev",
-      url: baseURL,
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-      env: {
-        INNGEST_DEV: "true",
-        INNGEST_BASE_URL: "http://localhost:8288",
-        NODE_TLS_REJECT_UNAUTHORIZED: "0", // Allow SSL issues with test sites
-      },
-    },
-  ],
+  webServer: {
+    command: "npm run build && npm run start",
+    url: baseURL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });
