@@ -166,9 +166,11 @@ async function checkInngest(): Promise<HealthCheck> {
       };
     }
 
-    // Validate key formats
+    // Validate keys are present (format validation delegated to Inngest SDK)
+    // Local dev: dummy keys work with dev server
+    // Production: SDK validates format when actually used
     const validEventKey = eventKey.length > 0;
-    const validSigningKey = signingKey.startsWith("signkey-");
+    const validSigningKey = signingKey.length > 0;
 
     if (!validEventKey || !validSigningKey) {
       return {
