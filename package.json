@@ -6,6 +6,7 @@
     "dev": "next dev",
     "dev:inngest": "npx inngest-cli@latest dev",
     "build": "next build",
+    "vercel-build": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
