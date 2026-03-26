@@ -44,6 +44,8 @@ export default defineConfig({
       GROQ_API_KEY: process.env.GROQ_API_KEY || "",
       INNGEST_DEV: process.env.INNGEST_DEV || "",
       INNGEST_BASE_URL: process.env.INNGEST_BASE_URL || "",
+      NODE_TLS_REJECT_UNAUTHORIZED:
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED || "",
     },
   },
 });
