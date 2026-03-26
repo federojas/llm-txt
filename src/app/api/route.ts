@@ -14,8 +14,6 @@ export async function GET() {
     path: "/api",
   });
 
-  const correlationId = crypto.randomUUID();
-
   const response = NextResponse.json({
     name: "llms.txt Generator API",
     version: "1.0.0",
@@ -74,12 +72,9 @@ export async function GET() {
     },
   });
 
-  response.headers.set("x-correlation-id", correlationId);
-
   logger.info("API documentation served", {
     event: "api.docs.response",
     responseTime: Date.now() - startTime,
-    correlationId,
   });
 
   await logger.flush();

@@ -8,14 +8,6 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
-    // Exclude slow AI tests from default runs (run separately with test:integration:ai)
-    exclude: [
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/cypress/**",
-      "**/.{idea,git,cache,output,temp}/**",
-      "**/ai-generation.test.ts", // Slow AI tests - run separately
-    ],
   },
   resolve: {
     alias: {

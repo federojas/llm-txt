@@ -22,7 +22,7 @@ services:
 
   # Next.js Development Server
   app:
-    image: node:20 # Use debian-based image (includes CA certificates)
+    image: node:20-alpine
     container_name: llms-txt-app
     restart: unless-stopped
     working_dir: /app

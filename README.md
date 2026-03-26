@@ -116,14 +116,6 @@ Rate limiting is required for production to prevent API abuse:
 
 Without Redis, rate limiting is disabled (development only).
 
-**GitHub Secrets (CI/CD):**
-
-Configure these secrets in **Settings → Secrets and variables → Actions**:
-
-- `GROQ_API_KEY` - Get from https://console.groq.com/keys
-- `INNGEST_EVENT_KEY` - Get from https://www.inngest.com/ dashboard (required for E2E tests)
-- `INNGEST_SIGNING_KEY` - Get from https://www.inngest.com/ dashboard (required for E2E tests)
-
 ## 🤖 AI-Powered Descriptions
 
 The generator uses [Groq](https://groq.com) with Llama 3.3 70B to create high-quality page descriptions:
@@ -149,18 +141,6 @@ The generator uses [Groq](https://groq.com) with Llama 3.3 70B to create high-qu
 # Run all tests
 npm test
 
-# Run unit tests only
-npm run test:unit
-
-# Run integration tests (fast, ~10s)
-npm run test:integration
-
-# Run AI integration tests (slow, 5-10 minutes, not in CI)
-npm run test:integration:ai
-
-# Run E2E tests
-npm run test:e2e
-
 # Run tests with UI
 npm run test:ui
 
@@ -170,13 +150,6 @@ npm run type-check
 # Lint code
 npm run lint
 ```
-
-**Test Suites:**
-
-- **Unit Tests** (214 tests, ~2s): Fast, isolated tests for business logic
-- **Integration Tests** (15 tests, ~10s): Database operations, job lifecycle
-- **AI Integration Tests** (3 tests, 5-10min): Real Groq API calls with live sites (run separately, not in CI)
-- **E2E Tests** (15 tests, ~26s): Critical user flows through real API
 
 ## 📖 API Documentation
 
