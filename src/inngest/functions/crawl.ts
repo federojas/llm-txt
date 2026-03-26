@@ -84,7 +84,7 @@ export const processCrawl = inngest.createFunction(
       });
 
       // Step 2: Execute the crawl (this is your existing business logic)
-      const result = await step.run("crawl-website", async () => {
+      const { result, duration } = await step.run("crawl-website", async () => {
         const startTime = Date.now();
         logger.info("Starting website crawl", {
           event: "inngest.crawl.start",
@@ -114,16 +114,25 @@ export const processCrawl = inngest.createFunction(
           duration,
         });
 
-        return crawlResult;
+        return { result: crawlResult, duration };
       });
 
-      // Step 3: Save result to database
+      // Step 3: Save result to database with performance metrics
       await step.run("complete-job", async () => {
         logger.info("Job completed successfully", {
           event: "inngest.job.complete",
           jobId,
           pagesFound: result.stats.pagesFound,
+          duration,
+          apiCallsCount: result.stats.apiCallsCount,
+          tokensUsed: result.stats.tokensUsed,
         });
+
+        // Extract result metadata for analytics
+        const contentLines = result.content.split("\n");
+        const sectionCount = contentLines.filter((line: string) =>
+          line.startsWith("# ")
+        ).length;
 
         return db.crawlJob.update({
           where: { id: jobId },
@@ -131,6 +140,15 @@ export const processCrawl = inngest.createFunction(
             status: JobStatus.COMPLETED,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             result: result as any,
+            duration,
+            pagesProcessed: result.stats.pagesFound,
+            apiCallsCount: result.stats.apiCallsCount,
+            tokensUsed: result.stats.tokensUsed,
+            resultMetadata: {
+              sectionsCount: sectionCount,
+              contentLength: result.content.length,
+              outputLines: contentLines.length,
+            },
             completedAt: new Date(),
           },
         });
@@ -156,14 +174,49 @@ export const processCrawl = inngest.createFunction(
         },
       });
 
-      // Handle failures: Update job to FAILED
+      // Handle failures: Update job to FAILED with categorized reason
       await step.run("mark-failed", async () => {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error occurred";
+
+        // Categorize failure reason for analytics
+        let failureReason = "UNKNOWN_ERROR";
+        if (
+          errorMessage.includes("timeout") ||
+          errorMessage.includes("TIMEOUT")
+        ) {
+          failureReason = "TIMEOUT";
+        } else if (
+          errorMessage.includes("rate limit") ||
+          errorMessage.includes("429")
+        ) {
+          failureReason = "RATE_LIMIT";
+        } else if (
+          errorMessage.includes("API") ||
+          errorMessage.includes("Groq")
+        ) {
+          failureReason = "API_ERROR";
+        } else if (
+          errorMessage.includes("validation") ||
+          errorMessage.includes("invalid")
+        ) {
+          failureReason = "VALIDATION_ERROR";
+        } else if (
+          errorMessage.includes("network") ||
+          errorMessage.includes("ENOTFOUND") ||
+          errorMessage.includes("ECONNREFUSED")
+        ) {
+          failureReason = "NETWORK_ERROR";
+        } else if (errorMessage.includes("No pages found")) {
+          failureReason = "NO_PAGES_FOUND";
+        }
+
         return db.crawlJob.update({
           where: { id: jobId },
           data: {
             status: JobStatus.FAILED,
-            error:
-              error instanceof Error ? error.message : "Unknown error occurred",
+            error: errorMessage,
+            failureReason,
             completedAt: new Date(),
           },
         });

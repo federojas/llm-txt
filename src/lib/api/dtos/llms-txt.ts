@@ -54,6 +54,9 @@ export interface GenerateResponseData {
   stats: {
     pagesFound: number;
     url: string;
+    // Performance metrics for cost tracking and analytics
+    apiCallsCount?: number; // Estimated Groq API calls made
+    tokensUsed?: number; // Estimated tokens consumed (for cost tracking)
   };
 }
 

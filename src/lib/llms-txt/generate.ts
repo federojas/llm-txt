@@ -59,20 +59,35 @@ export class GenerateLlmsTxt {
       const content = await this.generateContent(pages, request);
 
       const duration = Date.now() - startTime;
+
+      // Estimate API calls and token usage for cost tracking
+      // AI mode: ~2 baseline calls (summary + sections) + 1 per page for descriptions
+      // Metadata mode: ~2 baseline calls only (summary + sections)
+      const generationMode = request.generationMode ?? "metadata";
+      const apiCallsCount = generationMode === "ai" ? 2 + pages.length : 2;
+
+      // Estimate tokens: ~500 tokens per API call (rough average for Groq)
+      // This helps track costs: Groq charges ~$0.05-0.10 per 1M tokens
+      const tokensUsed = apiCallsCount * 500;
+
       logger.info("Generation completed successfully", {
         event: "generate.success",
         url: request.url,
         pagesFound: pages.length,
         duration,
         contentLength: content.length,
+        apiCallsCount,
+        tokensUsed,
       });
 
-      // Return structured response
+      // Return structured response with performance metrics
       return {
         content,
         stats: {
           pagesFound: pages.length,
           url: config.url,
+          apiCallsCount,
+          tokensUsed,
         },
       };
     } catch (error) {
