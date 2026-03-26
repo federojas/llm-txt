@@ -18,6 +18,7 @@ import { createQualityGateFilter } from "./quality-gates";
 import type { TitleCleanup } from "@/lib/api/dtos/llms-txt";
 import { validateLlmsTxtFormat } from "./spec";
 import { getLogger } from "@/lib/logger";
+import { MetadataAccumulator } from "@/lib/content-generation/metadata-accumulator";
 
 /**
  * Formatter Service
@@ -46,8 +47,19 @@ export class Formatter {
     robotsDirectives?: RobotsDirectives,
     projectDescription?: string,
     titleCleanup?: TitleCleanup,
-    generationMode: "ai" | "metadata" = "metadata"
-  ): Promise<string> {
+    generationMode: "ai" | "metadata" = "metadata",
+    metadataAccumulator?: MetadataAccumulator
+  ): Promise<{
+    content: string;
+    validation: {
+      valid: boolean;
+      errors: string[];
+      warnings: string[];
+      sectionsCount: number;
+      linkCount: number;
+      lineCount: number;
+    };
+  }> {
     const output = await this.buildStructure(
       pages,
       projectName,
@@ -55,7 +67,8 @@ export class Formatter {
       robotsDirectives,
       projectDescription,
       titleCleanup,
-      generationMode
+      generationMode,
+      metadataAccumulator
     );
     return this.format(output);
   }
@@ -70,7 +83,8 @@ export class Formatter {
     robotsDirectives?: RobotsDirectives,
     projectDescription?: string,
     titleCleanup?: TitleCleanup,
-    generationMode: "ai" | "metadata" = "metadata"
+    generationMode: "ai" | "metadata" = "metadata",
+    metadataAccumulator?: MetadataAccumulator
   ): Promise<LlmsTxtOutput> {
     if (pages.length === 0) {
       throw new Error("No pages to generate llms.txt from");
@@ -114,14 +128,20 @@ export class Formatter {
     } else {
       // Generate via AI
       const summaryResponse =
-        await this.descriptionGenerator.generateBusinessSummary(homepage);
+        await this.descriptionGenerator.generateBusinessSummary(
+          homepage,
+          metadataAccumulator
+        );
       const parsed = this.parseSummaryResponse(summaryResponse);
       summary = parsed.summary;
       details = parsed.details;
     }
 
     // Generate descriptions for filtered pages only (saves API calls)
-    const aiDescriptions = await this.generateDescriptions(filteredPages);
+    const aiDescriptions = await this.generateDescriptions(
+      filteredPages,
+      metadataAccumulator
+    );
 
     // Apply manual title cleanup first (inspired by llmstxt --replace-title)
     let allTitles = filteredPages.map((p) => p.title);
@@ -150,8 +170,10 @@ export class Formatter {
     console.log(
       `[Section Discovery] Using AI-powered semantic clustering (${generationMode} mode)`
     );
-    const sectionGroups =
-      await this.sectionDiscovery.discoverSections(nonHomepagePages);
+    const sectionGroups = await this.sectionDiscovery.discoverSections(
+      nonHomepagePages,
+      metadataAccumulator
+    );
 
     const sections = this.buildSectionsFromAI(
       nonHomepagePages,
@@ -180,13 +202,16 @@ export class Formatter {
    * Processes sequentially to respect rate limits in the generator
    */
   private async generateDescriptions(
-    pages: PageMetadata[]
+    pages: PageMetadata[],
+    metadataAccumulator?: MetadataAccumulator
   ): Promise<Map<string, string>> {
     const descriptions = new Map<string, string>();
 
     for (const page of pages) {
-      const description =
-        await this.descriptionGenerator.generateDescription(page);
+      const description = await this.descriptionGenerator.generateDescription(
+        page,
+        metadataAccumulator
+      );
       descriptions.set(page.url, description);
     }
 
@@ -518,9 +543,19 @@ export class Formatter {
   }
 
   /**
-   * Format llms.txt output
+   * Format llms.txt output and return with validation data
    */
-  private format(output: LlmsTxtOutput): string {
+  private format(output: LlmsTxtOutput): {
+    content: string;
+    validation: {
+      valid: boolean;
+      errors: string[];
+      warnings: string[];
+      sectionsCount: number;
+      linkCount: number;
+      lineCount: number;
+    };
+  } {
     const lines: string[] = [];
 
     // H1 - Project name (required)
@@ -573,18 +608,29 @@ export class Formatter {
 
     const content = lines.join("\n").trim() + "\n";
 
-    // Validate output against canonical spec (non-blocking, for observability)
-    this.validateOutput(content);
+    // Validate output against canonical spec and return validation data
+    const validation = this.validateOutput(content);
 
-    return content;
+    return {
+      content,
+      validation: {
+        valid: validation.valid,
+        errors: validation.errors,
+        warnings: validation.warnings,
+        sectionsCount: validation.stats.sectionCount,
+        linkCount: validation.stats.linkCount,
+        lineCount: validation.stats.lineCount,
+      },
+    };
   }
 
   /**
    * Validate generated output against canonical spec
    * Non-blocking: logs warnings but doesn't throw
    * Provides observability for format regressions
+   * Returns validation results for storage in database
    */
-  private validateOutput(content: string): void {
+  private validateOutput(content: string) {
     const logger = getLogger();
     const validation = validateLlmsTxtFormat(content);
 
@@ -612,6 +658,8 @@ export class Formatter {
         stats: validation.stats,
       });
     }
+
+    return validation;
   }
 }
 

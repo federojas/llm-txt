@@ -55,8 +55,32 @@ export interface GenerateResponseData {
     pagesFound: number;
     url: string;
     // Performance metrics for cost tracking and analytics
-    apiCallsCount?: number; // Estimated Groq API calls made
-    tokensUsed?: number; // Estimated tokens consumed (for cost tracking)
+    apiCallsCount?: number; // Total API calls made
+    tokensUsed?: number; // Actual tokens consumed (from API response)
+    tokensPrompt?: number; // Prompt tokens used
+    tokensCompletion?: number; // Completion tokens used
+    // AI model tracking
+    modelUsed?: string; // Primary model used (e.g., "llama-3.3-70b-versatile")
+    modelFallback?: boolean; // Whether we switched models due to rate limits
+    fallbackChain?: string[]; // All models tried (for debugging)
+    // Quality metrics
+    validation?: {
+      valid: boolean;
+      errors: string[];
+      warnings: string[];
+      sectionsCount: number;
+      linkCount: number;
+      lineCount: number;
+    };
+    // Crawl statistics
+    crawlStats?: {
+      linksDiscovered: number; // Total links found
+      linksFiltered: number; // Filtered by relevance scoring
+      linksCrawled: number; // Actually crawled (< maxPages)
+      robotsTxtBlocked?: number; // Blocked by robots.txt
+      sitemapUrls?: number; // URLs found in sitemap
+      avgRelevanceScore?: number; // Average link score
+    };
   };
 }
 

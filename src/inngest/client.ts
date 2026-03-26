@@ -8,22 +8,23 @@ import { Inngest } from "inngest";
 const isDev = process.env.INNGEST_DEV === "true";
 const baseUrl = process.env.INNGEST_BASE_URL;
 
-// Determine environment for branch-based isolation
+// Determine Inngest environment
 const getEnvironment = (): string | undefined => {
-  // Local development
+  // Local development - use dev mode (no environment)
   if (isDev) return undefined;
 
   // Vercel environments
   const vercelEnv = process.env.VERCEL_ENV;
-  const vercelBranch = process.env.VERCEL_GIT_COMMIT_REF;
 
   if (vercelEnv === "production") {
     return "production";
   }
 
-  if (vercelEnv === "preview" && vercelBranch) {
-    // Use branch name as environment (e.g., "preview-feature-branch")
-    return `preview-${vercelBranch}`;
+  if (vercelEnv === "preview") {
+    // Previews use production Inngest environment
+    // Database is already isolated per preview branch
+    // This avoids needing to sync each preview branch with Inngest
+    return "production";
   }
 
   // Default to undefined for local dev
@@ -32,7 +33,7 @@ const getEnvironment = (): string | undefined => {
 
 export const inngest = new Inngest({
   id: "llm-txt",
-  // Branch-based environments for isolation
+  // Environment: production for prod/preview, undefined for local dev
   env: getEnvironment(),
   // In production, use INNGEST_EVENT_KEY
   eventKey: isDev ? undefined : process.env.INNGEST_EVENT_KEY,

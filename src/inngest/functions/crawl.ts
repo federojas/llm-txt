@@ -21,6 +21,85 @@ export const processCrawl = inngest.createFunction(
     name: "Process Crawl Job",
     triggers: { event: CRAWL_REQUESTED },
     timeouts: { finish: "30m" }, // Safety net for large crawls (maxPages up to 100)
+
+    // Handle function failures including timeouts
+    onFailure: async ({ event, error }) => {
+      // Extract data from the original event that triggered the function
+      // In onFailure hook, the original event is nested under event.event
+      const originalEvent = (event as { event?: { data?: unknown } }).event;
+      const eventData = originalEvent?.data as
+        | {
+            jobId: string;
+            url: string;
+            correlationId?: string;
+          }
+        | undefined;
+
+      if (!eventData?.jobId) {
+        // Can't process without jobId - log and exit
+        console.error("[Inngest onFailure] Missing jobId in event data", {
+          error: error.message,
+          event,
+        });
+        return;
+      }
+
+      const { jobId, url, correlationId } = eventData;
+
+      const logger = createLogger({
+        jobId,
+        url,
+        correlationId,
+      });
+
+      logger.error("Inngest function failed", {
+        event: "inngest.job.failure_hook",
+        jobId,
+        url,
+        errorName: error.name,
+        errorMessage: error.message,
+        stack: error.stack,
+      });
+
+      try {
+        // Determine failure reason based on error type
+        const isTimeout =
+          error.name === "TimeoutError" ||
+          error.message.includes("timeout") ||
+          error.message.includes("exceeded");
+
+        const failureReason = isTimeout ? "TIMEOUT" : "FUNCTION_ERROR";
+        const errorMessage = isTimeout
+          ? "Job exceeded 30-minute processing timeout"
+          : `Job processing failed: ${error.message}`;
+
+        // Mark job as failed in database
+        await db.crawlJob.update({
+          where: { id: jobId },
+          data: {
+            status: JobStatus.FAILED,
+            error: errorMessage,
+            failureReason,
+            completedAt: new Date(),
+          },
+        });
+
+        logger.info("Job marked as failed via onFailure hook", {
+          event: "inngest.job.failure_hook.success",
+          jobId,
+          failureReason,
+        });
+      } catch (dbError) {
+        // Log but don't throw - we don't want onFailure hook to crash
+        logger.error("Failed to update job in onFailure hook", {
+          event: "inngest.job.failure_hook.error",
+          jobId,
+          dbError: dbError instanceof Error ? dbError.message : String(dbError),
+        });
+      }
+
+      await logger.flush();
+    },
   },
   async ({ event, step }) => {
     const {
@@ -125,12 +204,13 @@ export const processCrawl = inngest.createFunction(
           duration,
           apiCallsCount: result.stats.apiCallsCount,
           tokensUsed: result.stats.tokensUsed,
+          validation: result.stats.validation?.valid,
         });
 
         // Extract result metadata for analytics
         const contentLines = result.content.split("\n");
         const sectionCount = contentLines.filter((line: string) =>
-          line.startsWith("# ")
+          line.startsWith("## ")
         ).length;
 
         return db.crawlJob.update({
@@ -146,6 +226,25 @@ export const processCrawl = inngest.createFunction(
               sectionsCount: sectionCount,
               contentLength: result.content.length,
               outputLines: contentLines.length,
+              // Quality metrics from validation
+              validation: result.stats.validation
+                ? {
+                    valid: result.stats.validation.valid,
+                    errors: result.stats.validation.errors,
+                    warnings: result.stats.validation.warnings,
+                    sectionsCount: result.stats.validation.sectionsCount,
+                    linkCount: result.stats.validation.linkCount,
+                    lineCount: result.stats.validation.lineCount,
+                  }
+                : undefined,
+              // AI model tracking (Phase 1 - will be populated when we integrate GroqClient metadata)
+              modelUsed: result.stats.modelUsed,
+              modelFallback: result.stats.modelFallback,
+              fallbackChain: result.stats.fallbackChain,
+              tokensPrompt: result.stats.tokensPrompt,
+              tokensCompletion: result.stats.tokensCompletion,
+              // Crawl statistics (Phase 2 - will be populated when we add crawler tracking)
+              crawlStats: result.stats.crawlStats,
             },
             completedAt: new Date(),
           },

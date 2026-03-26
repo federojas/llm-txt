@@ -6,6 +6,7 @@ import {
   BadRequestError,
   TimeoutError,
   RateLimitError,
+  ServiceUnavailableError,
 } from "@/lib/api";
 
 describe("API Error Classes", () => {
@@ -70,11 +71,44 @@ describe("API Error Classes", () => {
 
   describe("RateLimitError", () => {
     it("should create a rate limit error with correct properties", () => {
-      const error = new RateLimitError("Too many requests");
+      const resetMs = Date.now() + 60000; // 1 minute from now
+      const error = new RateLimitError("Too many requests", resetMs);
 
       expect(error).toBeInstanceOf(Error);
       expect(error.statusCode).toBe(429);
       expect(error.code).toBe("RATE_LIMIT_EXCEEDED");
+      expect(error.resetMs).toBe(resetMs);
+    });
+
+    it("should include details when provided", () => {
+      const resetMs = Date.now() + 60000;
+      const details = { ip: "127.0.0.1", limit: 100 };
+      const error = new RateLimitError("Too many requests", resetMs, details);
+
+      expect(error.details).toEqual(details);
+      expect(error.resetMs).toBe(resetMs);
+    });
+  });
+
+  describe("ServiceUnavailableError", () => {
+    it("should create a service unavailable error with correct properties", () => {
+      const error = new ServiceUnavailableError(
+        "Service temporarily unavailable"
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      expect(error.statusCode).toBe(503);
+      expect(error.code).toBe("SERVICE_UNAVAILABLE");
+    });
+
+    it("should include details when provided", () => {
+      const details = { service: "Inngest", reason: "Connection timeout" };
+      const error = new ServiceUnavailableError(
+        "Job processing unavailable",
+        details
+      );
+
+      expect(error.details).toEqual(details);
     });
   });
 });

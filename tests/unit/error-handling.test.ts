@@ -4,7 +4,12 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { NotFoundError } from "@/lib/api/api-error";
+import {
+  NotFoundError,
+  RateLimitError,
+  ServiceUnavailableError,
+} from "@/lib/api/api-error";
+import { handleApiError } from "@/lib/api/middleware/error-handler";
 
 describe("Error Handling", () => {
   describe("Invalid URL Errors", () => {
@@ -103,6 +108,64 @@ describe("Error Handling", () => {
 
       expect(error).toBeInstanceOf(NotFoundError);
       expect(error.statusCode).toBe(404);
+    });
+  });
+
+  describe("Rate Limit Error Handling", () => {
+    it("should include reset time metadata in RateLimitError", () => {
+      const resetMs = Date.now() + 60000; // 1 minute from now
+      const error = new RateLimitError(
+        "Rate limit exceeded. Try again in 60 seconds.",
+        resetMs
+      );
+
+      expect(error).toBeInstanceOf(RateLimitError);
+      expect(error.statusCode).toBe(429);
+      expect(error.code).toBe("RATE_LIMIT_EXCEEDED");
+      expect(error.resetMs).toBe(resetMs);
+    });
+
+    it("should properly format rate limit error responses with headers", () => {
+      const resetMs = Date.now() + 60000;
+      const error = new RateLimitError(
+        "Rate limit exceeded. Try again in 60 seconds.",
+        resetMs,
+        "Too many requests from this IP"
+      );
+
+      const response = handleApiError(error);
+
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+      expect(response.headers.get("X-RateLimit-Reset")).toBeTruthy();
+    });
+  });
+
+  describe("Service Unavailable Error Handling", () => {
+    it("should create ServiceUnavailableError when critical services are down", () => {
+      const error = new ServiceUnavailableError(
+        "Job processing service temporarily unavailable",
+        "Inngest is unreachable"
+      );
+
+      expect(error).toBeInstanceOf(ServiceUnavailableError);
+      expect(error.statusCode).toBe(503);
+      expect(error.code).toBe("SERVICE_UNAVAILABLE");
+      expect(error.message).toBe(
+        "Job processing service temporarily unavailable"
+      );
+      expect(error.details).toBe("Inngest is unreachable");
+    });
+
+    it("should format 503 responses correctly", () => {
+      const error = new ServiceUnavailableError(
+        "Job processing service temporarily unavailable",
+        "Unable to queue background job"
+      );
+
+      const response = handleApiError(error);
+
+      expect(response.status).toBe(503);
     });
   });
 });

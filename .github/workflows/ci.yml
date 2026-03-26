@@ -7,7 +7,7 @@ on:
   # This prevents redundant CI runs and speeds up deployments
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
 
     # PostgreSQL service for integration tests
@@ -26,17 +26,13 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    strategy:
-      matrix:
-        node-version: [20.x]
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js 20.x
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 20.x
           cache: "npm"
 
       - name: Install dependencies
@@ -104,6 +100,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-node-${{ matrix.node-version }}
+          name: playwright-report
           path: playwright-report/
           retention-days: 7

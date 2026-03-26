@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { ApiError } from "@/lib/api";
+import { ApiError, RateLimitError } from "@/lib/api";
 import { errorResponse } from "@/lib/api";
 import { ZodError } from "zod";
 
@@ -15,7 +15,24 @@ export function handleApiError(error: unknown): NextResponse {
   // Log error for debugging
   console.error("[API Error]", error);
 
-  // Handle ApiError instances
+  // Handle RateLimitError with special headers
+  if (error instanceof RateLimitError) {
+    const resetDate = new Date(error.resetMs);
+    const retryAfterSeconds = Math.ceil((error.resetMs - Date.now()) / 1000);
+
+    const response = NextResponse.json(
+      errorResponse(error.code, error.message, error.details),
+      { status: error.statusCode }
+    );
+
+    // Add rate limit headers (RFC 6585)
+    response.headers.set("Retry-After", retryAfterSeconds.toString());
+    response.headers.set("X-RateLimit-Reset", resetDate.toISOString());
+
+    return response;
+  }
+
+  // Handle other ApiError instances
   if (error instanceof ApiError) {
     return NextResponse.json(
       errorResponse(error.code, error.message, error.details),

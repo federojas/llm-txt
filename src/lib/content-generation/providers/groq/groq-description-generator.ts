@@ -5,6 +5,7 @@ import {
   getDescriptionPrompt,
   getBusinessSummaryPrompt,
 } from "../../shared/llms-txt-context";
+import { MetadataAccumulator } from "../../metadata-accumulator";
 
 /**
  * Groq Description Generator
@@ -22,54 +23,70 @@ export class GroqDescriptionGenerator implements IDescriptionGenerator {
     return this.groqClient.isAvailable();
   }
 
-  async generateDescription(page: PageMetadata): Promise<string> {
-    return this.groqClient.executeWithFallback(async (model, client) => {
-      return await client.chat.completions
-        .create({
-          model,
-          max_tokens: 120,
-          messages: [
-            {
-              role: "system",
-              content: getDescriptionPrompt(),
-            },
-            {
-              role: "user",
-              content: `Create a concise description for this page (max 20 words).
+  async generateDescription(
+    page: PageMetadata,
+    metadataAccumulator?: MetadataAccumulator
+  ): Promise<string> {
+    const { data, metadata } = await this.groqClient.executeWithFallback(
+      async (model, client) => {
+        return await client.chat.completions
+          .create({
+            model,
+            max_tokens: 120,
+            messages: [
+              {
+                role: "system",
+                content: getDescriptionPrompt(),
+              },
+              {
+                role: "user",
+                content: `Create a concise description for this page (max 20 words).
 
 Title: ${page.title}
 URL: ${page.url}
 Meta Description: ${page.description || page.ogDescription || "N/A"}
 
 Output only the description, no quotes, no preamble.`,
-            },
-          ],
-        })
-        .withResponse()
-        .then(({ data, response }) => {
-          const text = data.choices[0]?.message?.content?.trim() || "";
-          return {
-            data: text.replace(/^["']|["']$/g, ""),
-            response,
-          };
-        });
-    });
+              },
+            ],
+          })
+          .withResponse()
+          .then(({ data, response }) => {
+            const text = data.choices[0]?.message?.content?.trim() || "";
+            return {
+              data: text.replace(/^["']|["']$/g, ""),
+              response,
+            };
+          });
+      }
+    );
+
+    // Collect metadata if accumulator provided
+    if (metadataAccumulator) {
+      metadataAccumulator.addApiCall("description-generator", metadata);
+    }
+
+    return data;
   }
 
-  async generateBusinessSummary(homepage: PageMetadata): Promise<string> {
-    return this.groqClient.executeWithFallback(async (model, client) => {
-      return await client.chat.completions
-        .create({
-          model,
-          max_tokens: 500,
-          messages: [
-            {
-              role: "system",
-              content: getBusinessSummaryPrompt(),
-            },
-            {
-              role: "user",
-              content: `Analyze this website homepage and create a SPECIFIC summary explaining what this site is.
+  async generateBusinessSummary(
+    homepage: PageMetadata,
+    metadataAccumulator?: MetadataAccumulator
+  ): Promise<string> {
+    const { data, metadata } = await this.groqClient.executeWithFallback(
+      async (model, client) => {
+        return await client.chat.completions
+          .create({
+            model,
+            max_tokens: 500,
+            messages: [
+              {
+                role: "system",
+                content: getBusinessSummaryPrompt(),
+              },
+              {
+                role: "user",
+                content: `Analyze this website homepage and create a SPECIFIC summary explaining what this site is.
 
 Site Name: ${homepage.siteName || homepage.title}
 URL: ${homepage.url}
@@ -116,14 +133,22 @@ IF no useful information in body text:
 Write: NONE
 
 Your output:`,
-            },
-          ],
-        })
-        .withResponse()
-        .then(({ data, response }) => {
-          const text = data.choices[0]?.message?.content?.trim() || "";
-          return { data: text, response };
-        });
-    });
+              },
+            ],
+          })
+          .withResponse()
+          .then(({ data, response }) => {
+            const text = data.choices[0]?.message?.content?.trim() || "";
+            return { data: text, response };
+          });
+      }
+    );
+
+    // Collect metadata if accumulator provided
+    if (metadataAccumulator) {
+      metadataAccumulator.addApiCall("business-summary", metadata);
+    }
+
+    return data;
   }
 }

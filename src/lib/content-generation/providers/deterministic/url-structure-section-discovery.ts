@@ -1,5 +1,6 @@
 import { PageMetadata, SectionGroup } from "@/lib/types";
 import { ISectionDiscoveryService } from "../../core/types";
+import { MetadataAccumulator } from "../../metadata-accumulator";
 
 /**
  * URL Structure Section Discovery (Enhanced with Sitemap Intelligence)
@@ -55,7 +56,10 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
   /**
    * Discover sections from URL path structure with quality filtering
    */
-  async discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]> {
+  async discoverSections(
+    pages: PageMetadata[],
+    _metadataAccumulator?: MetadataAccumulator
+  ): Promise<SectionGroup[]> {
     console.log(
       `[UrlStructureSectionDiscovery] Analyzing ${pages.length} pages by URL structure...`
     );

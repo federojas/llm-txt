@@ -64,8 +64,26 @@ export class TimeoutError extends ApiError {
 export class RateLimitError extends ApiError {
   statusCode = 429;
   code = "RATE_LIMIT_EXCEEDED";
+  public resetMs: number; // Unix timestamp when rate limit resets
 
-  constructor(message: string = "Rate limit exceeded", details?: unknown) {
+  constructor(
+    message: string = "Rate limit exceeded",
+    resetMs: number,
+    details?: unknown
+  ) {
+    super(message, details);
+    this.resetMs = resetMs;
+  }
+}
+
+export class ServiceUnavailableError extends ApiError {
+  statusCode = 503;
+  code = "SERVICE_UNAVAILABLE";
+
+  constructor(
+    message: string = "Service temporarily unavailable",
+    details?: unknown
+  ) {
     super(message, details);
   }
 }

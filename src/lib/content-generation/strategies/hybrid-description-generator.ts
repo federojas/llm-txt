@@ -10,6 +10,7 @@
 
 import { IDescriptionGenerator } from "../core/types";
 import { PageMetadata } from "@/lib/types";
+import { MetadataAccumulator } from "../metadata-accumulator";
 
 export class HybridDescriptionGenerator implements IDescriptionGenerator {
   constructor(
@@ -21,16 +22,25 @@ export class HybridDescriptionGenerator implements IDescriptionGenerator {
    * Generate page description using heuristics (HTML meta tags)
    * Fast, no API calls
    */
-  async generateDescription(page: PageMetadata): Promise<string> {
-    return this.pageGenerator.generateDescription(page);
+  async generateDescription(
+    page: PageMetadata,
+    metadataAccumulator?: MetadataAccumulator
+  ): Promise<string> {
+    return this.pageGenerator.generateDescription(page, metadataAccumulator);
   }
 
   /**
    * Generate business summary using AI
    * 1 API call, high quality
    */
-  async generateBusinessSummary(homepage: PageMetadata): Promise<string> {
-    return this.summaryGenerator.generateBusinessSummary(homepage);
+  async generateBusinessSummary(
+    homepage: PageMetadata,
+    metadataAccumulator?: MetadataAccumulator
+  ): Promise<string> {
+    return this.summaryGenerator.generateBusinessSummary(
+      homepage,
+      metadataAccumulator
+    );
   }
 
   /**

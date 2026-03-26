@@ -7,17 +7,19 @@ import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getPollJobLimiter } from "@/lib/api/rate-limit";
 import { withRateLimit } from "@/lib/api/middleware/rate-limit";
+import { withErrorHandler } from "@/lib/api/middleware/error-handler";
 import { createRequestLogger } from "@/lib/api/middleware/logger";
+import { successResponse, NotFoundError } from "@/lib/api";
 
 export const GET = withRateLimit(
   getPollJobLimiter,
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-  ) => {
-    const { logger } = createRequestLogger(request);
+  withErrorHandler(
+    async (
+      request: NextRequest,
+      { params }: { params: Promise<{ id: string }> }
+    ) => {
+      const { logger } = createRequestLogger(request);
 
-    try {
       const { id } = await params;
 
       logger.debug("Querying job status", {
@@ -35,16 +37,7 @@ export const GET = withRateLimit(
           jobId: id,
         });
         await logger.flush();
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: "NOT_FOUND",
-              message: "Job not found",
-            },
-          },
-          { status: 404 }
-        );
+        throw new NotFoundError("Job not found");
       }
 
       logger.info("Job status retrieved successfully", {
@@ -54,35 +47,28 @@ export const GET = withRateLimit(
       });
 
       await logger.flush();
-      return NextResponse.json({
-        success: true,
-        data: {
-          id: job.id,
-          status: job.status.toLowerCase(),
-          result: job.result,
-          error: job.error,
-          createdAt: job.createdAt,
-          startedAt: job.startedAt,
-          completedAt: job.completedAt,
-        },
-      });
-    } catch (error) {
-      logger.error("Failed to fetch job status", {
-        event: "api.job.status.error",
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      await logger.flush();
+
+      // Extract result data with proper typing
+      const result = job.result as {
+        content?: string;
+        stats?: { pagesFound?: number };
+      } | null;
+
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INTERNAL_ERROR",
-            message: "Failed to fetch job status",
-          },
-        },
-        { status: 500 }
+        successResponse({
+          id: job.id,
+          url: job.url,
+          status: job.status.toLowerCase(),
+          // Result data (only if completed)
+          content: result?.content ?? null,
+          pagesFound: result?.stats?.pagesFound ?? null,
+          // Error (only if failed)
+          error: job.error,
+          // Timestamps
+          createdAt: job.createdAt,
+          completedAt: job.completedAt,
+        })
       );
     }
-  }
+  )
 );

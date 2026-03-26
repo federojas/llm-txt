@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateRequest, withErrorHandler, successResponse } from "@/lib/api";
+import {
+  validateRequest,
+  withErrorHandler,
+  successResponse,
+  ServiceUnavailableError,
+} from "@/lib/api";
 import { crawlOptionsSchema } from "@/lib/api";
 import type { GenerateRequest } from "@/lib/api";
 import { db } from "@/lib/db";
@@ -79,20 +84,50 @@ export const POST = withRateLimit(
 
     // Trigger Inngest background job
     // Branch environments automatically isolated via client.ts
-    await inngest.send({
-      name: CRAWL_REQUESTED,
-      data: {
-        jobId: job.id,
-        correlationId, // Pass correlation ID to Inngest for distributed tracing
-        ...requestData,
-      },
-    });
+    try {
+      await inngest.send({
+        name: CRAWL_REQUESTED,
+        data: {
+          jobId: job.id,
+          correlationId, // Pass correlation ID to Inngest for distributed tracing
+          ...requestData,
+        },
+      });
 
-    logger.info("Inngest job triggered", {
-      event: "api.job.triggered",
-      jobId: job.id,
-      inngestEvent: CRAWL_REQUESTED,
-    });
+      logger.info("Inngest job triggered", {
+        event: "api.job.triggered",
+        jobId: job.id,
+        inngestEvent: CRAWL_REQUESTED,
+      });
+    } catch (error) {
+      // Inngest is down or unreachable
+      logger.error("Failed to queue Inngest job", {
+        event: "api.inngest.queue_failed",
+        jobId: job.id,
+        url: requestData.url,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      await logger.flush();
+
+      // Mark job as failed for auditing and analytics
+      // User never receives jobId, but we keep record for debugging
+      await db.crawlJob.update({
+        where: { id: job.id },
+        data: {
+          status: JobStatus.FAILED,
+          error: "Failed to queue background job",
+          failureReason: "INNGEST_UNAVAILABLE",
+          completedAt: new Date(),
+        },
+      });
+
+      throw new ServiceUnavailableError(
+        "Job processing service temporarily unavailable. Please try again later.",
+        "Unable to queue background job - Inngest service may be down"
+      );
+    }
 
     // Return job ID immediately (async pattern)
     const response = NextResponse.json(
