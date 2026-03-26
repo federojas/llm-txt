@@ -11,7 +11,7 @@ describe("Domain Validation Rules", () => {
   describe("CRAWL_LIMITS constants", () => {
     it("should define correct limits", () => {
       expect(CRAWL_LIMITS.MIN_PAGES).toBe(1);
-      expect(CRAWL_LIMITS.MAX_PAGES).toBe(100);
+      expect(CRAWL_LIMITS.MAX_PAGES).toBe(200);
       expect(CRAWL_LIMITS.MIN_DEPTH).toBe(1);
       expect(CRAWL_LIMITS.MAX_DEPTH).toBe(5);
     });
@@ -30,7 +30,7 @@ describe("Domain Validation Rules", () => {
     it("should accept valid page counts", () => {
       expect(validateMaxPages(1)).toBe(true);
       expect(validateMaxPages(50)).toBe(true);
-      expect(validateMaxPages(100)).toBe(true);
+      expect(validateMaxPages(200)).toBe(true);
     });
 
     it("should reject page counts below minimum", () => {
@@ -39,8 +39,8 @@ describe("Domain Validation Rules", () => {
     });
 
     it("should reject page counts above maximum", () => {
-      expect(validateMaxPages(101)).toBe(false);
-      expect(validateMaxPages(200)).toBe(false);
+      expect(validateMaxPages(201)).toBe(false);
+      expect(validateMaxPages(300)).toBe(false);
     });
 
     it("should reject non-integer values", () => {

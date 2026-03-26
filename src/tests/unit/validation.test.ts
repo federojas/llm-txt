@@ -58,7 +58,7 @@ describe("Validation Schemas", () => {
     it("should enforce max page limits", () => {
       const config = {
         url: "https://example.com",
-        maxPages: 101,
+        maxPages: 201,
       };
       expect(crawlConfigSchema.safeParse(config).success).toBe(false);
     });
