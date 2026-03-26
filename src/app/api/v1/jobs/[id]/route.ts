@@ -7,18 +7,19 @@ import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getPollJobLimiter } from "@/lib/api/rate-limit";
 import { withRateLimit } from "@/lib/api/middleware/rate-limit";
+import { withErrorHandler } from "@/lib/api/middleware/error-handler";
 import { createRequestLogger } from "@/lib/api/middleware/logger";
-import { successResponse, errorResponse } from "@/lib/api";
+import { successResponse, NotFoundError } from "@/lib/api";
 
 export const GET = withRateLimit(
   getPollJobLimiter,
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-  ) => {
-    const { logger } = createRequestLogger(request);
+  withErrorHandler(
+    async (
+      request: NextRequest,
+      { params }: { params: Promise<{ id: string }> }
+    ) => {
+      const { logger } = createRequestLogger(request);
 
-    try {
       const { id } = await params;
 
       logger.debug("Querying job status", {
@@ -36,9 +37,7 @@ export const GET = withRateLimit(
           jobId: id,
         });
         await logger.flush();
-        return NextResponse.json(errorResponse("NOT_FOUND", "Job not found"), {
-          status: 404,
-        });
+        throw new NotFoundError("Job not found");
       }
 
       logger.info("Job status retrieved successfully", {
@@ -70,17 +69,6 @@ export const GET = withRateLimit(
           completedAt: job.completedAt,
         })
       );
-    } catch (error) {
-      logger.error("Failed to fetch job status", {
-        event: "api.job.status.error",
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      await logger.flush();
-      return NextResponse.json(
-        errorResponse("INTERNAL_ERROR", "Failed to fetch job status"),
-        { status: 500 }
-      );
     }
-  }
+  )
 );
