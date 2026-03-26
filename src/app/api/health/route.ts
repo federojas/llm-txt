@@ -153,7 +153,28 @@ async function checkInngest(): Promise<HealthCheck> {
   const startTime = Date.now();
 
   try {
-    // Check if required Inngest environment variables are configured
+    // In dev mode, Inngest doesn't require keys (uses local dev server)
+    const isDev = process.env.INNGEST_DEV === "true";
+
+    if (isDev) {
+      // Dev mode: Check if dev server URL is configured
+      const baseUrl = process.env.INNGEST_BASE_URL;
+      if (baseUrl) {
+        return {
+          name: "inngest",
+          status: "healthy",
+          responseTime: Date.now() - startTime,
+        };
+      }
+      return {
+        name: "inngest",
+        status: "unhealthy",
+        responseTime: Date.now() - startTime,
+        error: "Dev mode requires INNGEST_BASE_URL",
+      };
+    }
+
+    // Production mode: Check if required Inngest environment variables are configured
     const eventKey = process.env.INNGEST_EVENT_KEY;
     const signingKey = process.env.INNGEST_SIGNING_KEY;
 
