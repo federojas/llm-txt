@@ -11,7 +11,7 @@ test.describe("Job Generation", () => {
       data: {
         url: "https://example.com",
         maxPages: 1,
-        maxDepth: 0,
+        maxDepth: 1, // Minimum allowed depth
         generationMode: "metadata", // Fast mode without AI
       },
     });
@@ -60,7 +60,7 @@ test.describe("Job Generation", () => {
       data: {
         url: "https://example.com",
         maxPages: 1,
-        maxDepth: 0,
+        maxDepth: 1, // Minimum allowed depth
         generationMode: "metadata", // Fast mode without AI
       },
     });
@@ -99,7 +99,7 @@ test.describe("Job Generation", () => {
           url: "https://example.com",
           preset,
           maxPages: 1, // Override preset for fast E2E
-          maxDepth: 0,
+          maxDepth: 1, // Minimum allowed depth
           generationMode: "metadata", // Fast mode without AI
         },
       });

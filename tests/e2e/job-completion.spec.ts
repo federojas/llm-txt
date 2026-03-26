@@ -13,7 +13,7 @@ test.describe("Job Completion", () => {
       data: {
         url: "https://example.com",
         maxPages: 1, // Minimal - just homepage
-        maxDepth: 0, // No following links
+        maxDepth: 1, // Minimum allowed depth // No following links
         generationMode: "metadata", // Fast mode without AI
       },
     });
@@ -68,7 +68,7 @@ test.describe("Job Completion", () => {
       data: {
         url: "https://example.com",
         maxPages: 1, // Minimal crawl for fast E2E
-        maxDepth: 0,
+        maxDepth: 1, // Minimum allowed depth
         generationMode: "metadata", // Fast mode without AI
       },
     });
