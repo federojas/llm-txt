@@ -3,7 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone", // For Docker deployment
+  output: "standalone", // For Docker and standalone deployments
 };
 
 // Wrap with both Axiom and Sentry

@@ -34,8 +34,9 @@ export default defineConfig({
   ],
 
   // Run dev server before tests
+  // Using standalone server for consistency with Docker deployments
   webServer: {
-    command: "npm run build && npm run start",
+    command: "npm run build && node .next/standalone/server.js",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
