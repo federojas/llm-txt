@@ -75,3 +75,15 @@ export class RateLimitError extends ApiError {
     this.resetMs = resetMs;
   }
 }
+
+export class ServiceUnavailableError extends ApiError {
+  statusCode = 503;
+  code = "SERVICE_UNAVAILABLE";
+
+  constructor(
+    message: string = "Service temporarily unavailable",
+    details?: unknown
+  ) {
+    super(message, details);
+  }
+}

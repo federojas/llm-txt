@@ -4,7 +4,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { NotFoundError, RateLimitError } from "@/lib/api/api-error";
+import {
+  NotFoundError,
+  RateLimitError,
+  ServiceUnavailableError,
+} from "@/lib/api/api-error";
 import { handleApiError } from "@/lib/api/middleware/error-handler";
 
 describe("Error Handling", () => {
@@ -134,6 +138,34 @@ describe("Error Handling", () => {
       expect(response.status).toBe(429);
       expect(response.headers.get("Retry-After")).toBeTruthy();
       expect(response.headers.get("X-RateLimit-Reset")).toBeTruthy();
+    });
+  });
+
+  describe("Service Unavailable Error Handling", () => {
+    it("should create ServiceUnavailableError when critical services are down", () => {
+      const error = new ServiceUnavailableError(
+        "Job processing service temporarily unavailable",
+        "Inngest is unreachable"
+      );
+
+      expect(error).toBeInstanceOf(ServiceUnavailableError);
+      expect(error.statusCode).toBe(503);
+      expect(error.code).toBe("SERVICE_UNAVAILABLE");
+      expect(error.message).toBe(
+        "Job processing service temporarily unavailable"
+      );
+      expect(error.details).toBe("Inngest is unreachable");
+    });
+
+    it("should format 503 responses correctly", () => {
+      const error = new ServiceUnavailableError(
+        "Job processing service temporarily unavailable",
+        "Unable to queue background job"
+      );
+
+      const response = handleApiError(error);
+
+      expect(response.status).toBe(503);
     });
   });
 });

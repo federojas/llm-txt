@@ -6,6 +6,7 @@ import {
   BadRequestError,
   TimeoutError,
   RateLimitError,
+  ServiceUnavailableError,
 } from "@/lib/api";
 
 describe("API Error Classes", () => {
@@ -86,6 +87,28 @@ describe("API Error Classes", () => {
 
       expect(error.details).toEqual(details);
       expect(error.resetMs).toBe(resetMs);
+    });
+  });
+
+  describe("ServiceUnavailableError", () => {
+    it("should create a service unavailable error with correct properties", () => {
+      const error = new ServiceUnavailableError(
+        "Service temporarily unavailable"
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      expect(error.statusCode).toBe(503);
+      expect(error.code).toBe("SERVICE_UNAVAILABLE");
+    });
+
+    it("should include details when provided", () => {
+      const details = { service: "Inngest", reason: "Connection timeout" };
+      const error = new ServiceUnavailableError(
+        "Job processing unavailable",
+        details
+      );
+
+      expect(error.details).toEqual(details);
     });
   });
 });
