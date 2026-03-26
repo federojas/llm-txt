@@ -22,8 +22,7 @@ export const processCrawl = inngest.createFunction(
     triggers: { event: CRAWL_REQUESTED },
     timeouts: { finish: "30m" }, // Safety net for large crawls (maxPages up to 100)
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async ({ event, step }: any) => {
+  async ({ event, step }) => {
     const {
       jobId,
       url,
@@ -138,8 +137,7 @@ export const processCrawl = inngest.createFunction(
           where: { id: jobId },
           data: {
             status: JobStatus.COMPLETED,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            result: result as any,
+            result: JSON.parse(JSON.stringify(result)),
             duration,
             pagesProcessed: result.stats.pagesFound,
             apiCallsCount: result.stats.apiCallsCount,

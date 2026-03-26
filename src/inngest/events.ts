@@ -1,6 +1,8 @@
 /**
  * Inngest Event Names
- * Central registry of all events in the system
+ * Central registry of all event constants
+ *
+ * For type definitions, see: @/lib/types/inngest-events
  */
 
 // Crawl events
