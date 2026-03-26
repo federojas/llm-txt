@@ -66,7 +66,14 @@ describe("GroqClient", () => {
 
       const result = await client.executeWithFallback(apiCall);
 
-      expect(result).toEqual(mockData);
+      expect(result).toEqual({
+        data: mockData,
+        metadata: expect.objectContaining({
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+        }),
+      });
       expect(apiCall).toHaveBeenCalledTimes(1);
       expect(apiCall).toHaveBeenCalledWith(
         "llama-3.3-70b-versatile",
@@ -95,7 +102,13 @@ describe("GroqClient", () => {
 
       const result = await client.executeWithFallback(apiCall);
 
-      expect(result).toEqual(mockData);
+      expect(result).toEqual({
+        data: mockData,
+        metadata: expect.objectContaining({
+          modelUsed: "meta-llama/llama-4-scout-17b-16e-instruct",
+          modelFallback: true,
+        }),
+      });
       expect(apiCall).toHaveBeenCalledTimes(2);
       expect(apiCall).toHaveBeenNthCalledWith(
         1,
@@ -131,7 +144,13 @@ describe("GroqClient", () => {
 
       const result = await client.executeWithFallback(apiCall);
 
-      expect(result).toEqual(mockData);
+      expect(result).toEqual({
+        data: mockData,
+        metadata: expect.objectContaining({
+          modelUsed: "llama-3.1-8b-instant",
+          modelFallback: true,
+        }),
+      });
       expect(apiCall).toHaveBeenCalledTimes(3);
       expect(apiCall).toHaveBeenNthCalledWith(
         3,
@@ -185,7 +204,13 @@ describe("GroqClient", () => {
 
       const result = await client.executeWithFallback(apiCall);
 
-      expect(result).toEqual(mockData);
+      expect(result).toEqual({
+        data: mockData,
+        metadata: expect.objectContaining({
+          modelUsed: "meta-llama/llama-4-scout-17b-16e-instruct",
+          modelFallback: true,
+        }),
+      });
       expect(apiCall).toHaveBeenCalledTimes(2);
     });
 
@@ -276,7 +301,13 @@ describe("GroqClient", () => {
 
       const result = await client.executeWithFallback(apiCall);
 
-      expect(result).toEqual(mockData);
+      expect(result).toEqual({
+        data: mockData,
+        metadata: expect.objectContaining({
+          modelUsed: expect.any(String),
+          modelFallback: expect.any(Boolean),
+        }),
+      });
     });
 
     it("should throttle requests according to rate limiter", async () => {

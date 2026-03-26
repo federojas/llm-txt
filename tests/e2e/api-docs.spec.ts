@@ -26,7 +26,7 @@ test.describe("API Documentation", () => {
     const body = await response.json();
     expect(body.version).toBe("1");
     expect(body.resources).toBeDefined();
-    expect(body.resources.llmsTxt).toBeDefined();
+    expect(body.resources.createJob).toBeDefined();
   });
 
   test("should include correlation ID in response headers", async ({

@@ -101,6 +101,7 @@ export class GroqClient {
 
     let lastError: Error | null = null;
     const fallbackChain: string[] = [];
+    const originalModelIndex = this.currentModelIndex; // Store original to detect fallback
 
     for (let i = this.currentModelIndex; i < this.models.length; i++) {
       const model = this.models[i];
@@ -133,12 +134,12 @@ export class GroqClient {
           remainingTokens: this.rateLimitState.remainingTokens,
         });
 
-        // Success! Update current model if we switched
-        const modelFallback = i !== this.currentModelIndex;
+        // Success! Check if we used a fallback model
+        const modelFallback = i !== originalModelIndex;
         if (modelFallback) {
           this.logger.info(`Successfully switched to model: ${model.name}`, {
             event: "groq.model.switch",
-            from: this.models[this.currentModelIndex].name,
+            from: this.models[originalModelIndex].name,
             to: model.name,
             rpd: model.rpd,
             tpd: model.tpd,

@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPollJobLimiter } from "@/lib/api/rate-limit";
 import { withRateLimit } from "@/lib/api/middleware/rate-limit";
 import { createRequestLogger } from "@/lib/api/middleware/logger";
+import { successResponse, errorResponse } from "@/lib/api";
 
 export const GET = withRateLimit(
   getPollJobLimiter,

@@ -26,7 +26,7 @@ test.describe("Job Completion", () => {
     let attempts = 0;
     const maxAttempts = 30; // 30 attempts × 3 seconds = 90 seconds max
     let jobStatus = "pending";
-    let result: { content: string } | null = null;
+    let content: string | null = null;
 
     while (
       attempts < maxAttempts &&
@@ -38,16 +38,16 @@ test.describe("Job Completion", () => {
       const statusBody = await statusResponse.json();
 
       jobStatus = statusBody.data.status;
-      result = statusBody.data.result;
+      content = statusBody.data.content;
       attempts++;
     }
 
     // Job should complete successfully
     expect(jobStatus).toBe("completed");
-    expect(result).not.toBeNull();
+    expect(content).not.toBeNull();
 
     // Validate llms.txt format using canonical spec
-    const validation = validateLlmsTxtFormat(result!.content);
+    const validation = validateLlmsTxtFormat(content!);
 
     expect(validation.valid).toBe(true);
     expect(validation.errors).toHaveLength(0);
@@ -161,7 +161,7 @@ test.describe("Job Completion", () => {
     let attempts = 0;
     const maxAttempts = 30;
     let jobStatus = "pending";
-    let result: { content: string } | null = null;
+    let content: string | null = null;
 
     while (
       attempts < maxAttempts &&
@@ -173,13 +173,13 @@ test.describe("Job Completion", () => {
       const statusBody = await statusResponse.json();
 
       jobStatus = statusBody.data.status;
-      result = statusBody.data.result;
+      content = statusBody.data.content;
       attempts++;
     }
 
-    if (jobStatus === "completed" && result) {
+    if (jobStatus === "completed" && content) {
       // Count links in result (rough proxy for pages crawled)
-      const linkCount = (result.content.match(/\[.*?\]\(http/g) || []).length;
+      const linkCount = (content.match(/\[.*?\]\(http/g) || []).length;
 
       // Should not vastly exceed maxPages (allow some buffer for homepage + nav links)
       expect(linkCount).toBeLessThanOrEqual(maxPages * 2);

@@ -58,9 +58,17 @@ describe("GroqDescriptionGenerator", () => {
     };
 
     it("should generate description for a page", async () => {
-      mockExecuteWithFallback.mockResolvedValue(
-        "Company information and history"
-      );
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Company information and history",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await generator.generateDescription(mockPage);
 
@@ -72,7 +80,17 @@ describe("GroqDescriptionGenerator", () => {
       // Mock executeWithFallback to call the apiCall function which handles quote removal
       mockExecuteWithFallback.mockImplementation(async () => {
         // Simulate what the real implementation does: returns quoted text, which gets stripped
-        return "Company information"; // Quote stripping happens inside apiCall
+        return {
+          data: "Company information",
+          metadata: {
+            modelUsed: "llama-3.3-70b-versatile",
+            modelFallback: false,
+            fallbackChain: ["llama-3.3-70b-versatile"],
+            tokensUsed: null,
+            tokensPrompt: null,
+            tokensCompletion: null,
+          },
+        }; // Quote stripping happens inside apiCall
       });
 
       const result = await generator.generateDescription(mockPage);
@@ -83,7 +101,17 @@ describe("GroqDescriptionGenerator", () => {
     it("should remove single quotes from generated description", async () => {
       // Mock executeWithFallback to call the apiCall function which handles quote removal
       mockExecuteWithFallback.mockImplementation(async () => {
-        return "Company information"; // Quote stripping happens inside apiCall
+        return {
+          data: "Company information",
+          metadata: {
+            modelUsed: "llama-3.3-70b-versatile",
+            modelFallback: false,
+            fallbackChain: ["llama-3.3-70b-versatile"],
+            tokensUsed: null,
+            tokensPrompt: null,
+            tokensCompletion: null,
+          },
+        }; // Quote stripping happens inside apiCall
       });
 
       const result = await generator.generateDescription(mockPage);
@@ -97,9 +125,17 @@ describe("GroqDescriptionGenerator", () => {
         ogDescription: "OG description for social media",
       };
 
-      mockExecuteWithFallback.mockResolvedValue(
-        "Social media optimized description"
-      );
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Social media optimized description",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await generator.generateDescription(pageWithOg);
 
@@ -117,7 +153,17 @@ describe("GroqDescriptionGenerator", () => {
         internalLinks: [],
       };
 
-      mockExecuteWithFallback.mockResolvedValue("Generated description");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Generated description",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await generator.generateDescription(pageWithoutDesc);
 
@@ -133,7 +179,17 @@ describe("GroqDescriptionGenerator", () => {
     });
 
     it("should handle empty response", async () => {
-      mockExecuteWithFallback.mockResolvedValue("");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await generator.generateDescription(mockPage);
 
@@ -142,7 +198,17 @@ describe("GroqDescriptionGenerator", () => {
 
     it("should limit max tokens to 120", async () => {
       // This is a simplified test - in reality we'd verify the API call parameters
-      mockExecuteWithFallback.mockResolvedValue("Short description");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Short description",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await generator.generateDescription(mockPage);
 
@@ -168,7 +234,17 @@ describe("GroqDescriptionGenerator", () => {
       const mockSummary =
         "Example Corp is a technology company providing innovative solutions. ||| Things to remember when using Example Corp: Focus on innovation, Strong customer service, Cutting-edge technology";
 
-      mockExecuteWithFallback.mockResolvedValue(mockSummary);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: mockSummary,
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await generator.generateBusinessSummary(mockHomepage);
 
@@ -182,7 +258,17 @@ describe("GroqDescriptionGenerator", () => {
         siteName: undefined,
       };
 
-      mockExecuteWithFallback.mockResolvedValue("Company summary");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Company summary",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result =
         await generator.generateBusinessSummary(pageWithoutSiteName);
@@ -196,7 +282,17 @@ describe("GroqDescriptionGenerator", () => {
         bodyText: undefined,
       };
 
-      mockExecuteWithFallback.mockResolvedValue("Basic summary");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Basic summary",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await generator.generateBusinessSummary(pageWithoutBody);
 
@@ -210,7 +306,17 @@ describe("GroqDescriptionGenerator", () => {
         bodyText: longBodyText,
       };
 
-      mockExecuteWithFallback.mockResolvedValue("Summary of long content");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Summary of long content",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await generator.generateBusinessSummary(pageWithLongBody);
 
@@ -219,7 +325,17 @@ describe("GroqDescriptionGenerator", () => {
     });
 
     it("should set max tokens to 500 for business summary", async () => {
-      mockExecuteWithFallback.mockResolvedValue("Detailed business summary");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Detailed business summary",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await generator.generateBusinessSummary(mockHomepage);
 
@@ -239,7 +355,17 @@ describe("GroqDescriptionGenerator", () => {
 
     it("should trim whitespace from result", async () => {
       // Trimming happens inside apiCall, so mock returns already trimmed value
-      mockExecuteWithFallback.mockResolvedValue("Summary with spaces");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Summary with spaces",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await generator.generateBusinessSummary(mockHomepage);
 
@@ -259,9 +385,17 @@ describe("GroqDescriptionGenerator", () => {
         internalLinks: ["https://example.com/about"],
       };
 
-      mockExecuteWithFallback.mockResolvedValue(
-        "Complete summary with all context"
-      );
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Complete summary with all context",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await generator.generateBusinessSummary(completeHomepage);
 
@@ -279,7 +413,17 @@ describe("GroqDescriptionGenerator", () => {
         internalLinks: [],
       };
 
-      mockExecuteWithFallback.mockResolvedValue("Test description");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Test description",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await generator.generateDescription(mockPage);
 
@@ -297,7 +441,17 @@ describe("GroqDescriptionGenerator", () => {
         internalLinks: [],
       };
 
-      mockExecuteWithFallback.mockResolvedValue("Business summary");
+      mockExecuteWithFallback.mockResolvedValue({
+        data: "Business summary",
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await generator.generateBusinessSummary(mockHomepage);
 

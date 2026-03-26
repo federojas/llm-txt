@@ -87,7 +87,17 @@ describe("GroqSectionDiscovery", () => {
         { name: "Company", pageIndexes: [3] },
       ];
 
-      mockExecuteWithFallback.mockResolvedValue(mockSections);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: mockSections,
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(mockPages);
 
@@ -101,7 +111,17 @@ describe("GroqSectionDiscovery", () => {
         { name: "Technical Docs", pageIndexes: [1, 2, 3] },
       ];
 
-      mockExecuteWithFallback.mockResolvedValue(mockSections);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: mockSections,
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(mockPages);
 
@@ -111,7 +131,17 @@ describe("GroqSectionDiscovery", () => {
     });
 
     it("should handle empty page array", async () => {
-      mockExecuteWithFallback.mockResolvedValue([]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections([]);
 
@@ -119,9 +149,17 @@ describe("GroqSectionDiscovery", () => {
     });
 
     it("should include page titles and descriptions in prompt", async () => {
-      mockExecuteWithFallback.mockResolvedValue([
-        { name: "All Pages", pageIndexes: [0, 1, 2, 3] },
-      ]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [{ name: "All Pages", pageIndexes: [0, 1, 2, 3] }],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await service.discoverSections(mockPages);
 
@@ -133,7 +171,17 @@ describe("GroqSectionDiscovery", () => {
     });
 
     it("should set temperature to 0.3 for consistent grouping", async () => {
-      mockExecuteWithFallback.mockResolvedValue([]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await service.discoverSections(mockPages);
 
@@ -142,7 +190,17 @@ describe("GroqSectionDiscovery", () => {
     });
 
     it("should set max tokens to 1500", async () => {
-      mockExecuteWithFallback.mockResolvedValue([]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await service.discoverSections(mockPages);
 
@@ -166,9 +224,17 @@ describe("GroqSectionDiscovery", () => {
         },
       ];
 
-      mockExecuteWithFallback.mockResolvedValue([
-        { name: "Pages", pageIndexes: [0, 1] },
-      ]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [{ name: "Pages", pageIndexes: [0, 1] }],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(pagesWithoutDesc);
 
@@ -185,9 +251,17 @@ describe("GroqSectionDiscovery", () => {
         },
       ];
 
-      mockExecuteWithFallback.mockResolvedValue([
-        { name: "Home", pageIndexes: [0] },
-      ]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [{ name: "Home", pageIndexes: [0] }],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(singlePage);
 
@@ -212,7 +286,17 @@ describe("GroqSectionDiscovery", () => {
         },
       ];
 
-      mockExecuteWithFallback.mockResolvedValue(mockSections);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: mockSections,
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(manyPages);
 
@@ -231,7 +315,17 @@ describe("GroqSectionDiscovery", () => {
 
     it("should return empty array on JSON parse error", async () => {
       // Simulate executeWithFallback returning empty array when JSON parsing fails
-      mockExecuteWithFallback.mockResolvedValue([]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(mockPages);
 
@@ -241,9 +335,17 @@ describe("GroqSectionDiscovery", () => {
     it("should strip markdown code blocks from response", async () => {
       // The implementation strips ```json and ``` from responses
       // This is tested indirectly through successful parsing
-      mockExecuteWithFallback.mockResolvedValue([
-        { name: "Test Section", pageIndexes: [0, 1] },
-      ]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [{ name: "Test Section", pageIndexes: [0, 1] }],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(mockPages);
 
@@ -257,7 +359,17 @@ describe("GroqSectionDiscovery", () => {
         { name: "About", pageIndexes: [3] },
       ];
 
-      mockExecuteWithFallback.mockResolvedValue(mockSections);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: mockSections,
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(mockPages);
 
@@ -271,7 +383,17 @@ describe("GroqSectionDiscovery", () => {
         { name: "Section B", pageIndexes: [2, 3] },
       ];
 
-      mockExecuteWithFallback.mockResolvedValue(mockSections);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: mockSections,
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(mockPages);
 
@@ -292,7 +414,17 @@ describe("GroqSectionDiscovery", () => {
         { name: "About", pageIndexes: [3] },
       ];
 
-      mockExecuteWithFallback.mockResolvedValue(mockSections);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: mockSections,
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       const result = await service.discoverSections(mockPages);
 
@@ -306,7 +438,17 @@ describe("GroqSectionDiscovery", () => {
 
   describe("integration with prompts", () => {
     it("should use section discovery prompt", async () => {
-      mockExecuteWithFallback.mockResolvedValue([]);
+      mockExecuteWithFallback.mockResolvedValue({
+        data: [],
+        metadata: {
+          modelUsed: "llama-3.3-70b-versatile",
+          modelFallback: false,
+          fallbackChain: ["llama-3.3-70b-versatile"],
+          tokensUsed: null,
+          tokensPrompt: null,
+          tokensCompletion: null,
+        },
+      });
 
       await service.discoverSections(mockPages);
 
