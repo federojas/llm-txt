@@ -7,7 +7,7 @@ on:
   # This prevents redundant CI runs and speeds up deployments
 
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-latest
 
     # PostgreSQL service for integration tests
