@@ -125,12 +125,13 @@ export const processCrawl = inngest.createFunction(
           duration,
           apiCallsCount: result.stats.apiCallsCount,
           tokensUsed: result.stats.tokensUsed,
+          validation: result.stats.validation?.valid,
         });
 
         // Extract result metadata for analytics
         const contentLines = result.content.split("\n");
         const sectionCount = contentLines.filter((line: string) =>
-          line.startsWith("# ")
+          line.startsWith("## ")
         ).length;
 
         return db.crawlJob.update({
@@ -146,6 +147,25 @@ export const processCrawl = inngest.createFunction(
               sectionsCount: sectionCount,
               contentLength: result.content.length,
               outputLines: contentLines.length,
+              // Quality metrics from validation
+              validation: result.stats.validation
+                ? {
+                    valid: result.stats.validation.valid,
+                    errors: result.stats.validation.errors,
+                    warnings: result.stats.validation.warnings,
+                    sectionsCount: result.stats.validation.sectionsCount,
+                    linkCount: result.stats.validation.linkCount,
+                    lineCount: result.stats.validation.lineCount,
+                  }
+                : undefined,
+              // AI model tracking (Phase 1 - will be populated when we integrate GroqClient metadata)
+              modelUsed: result.stats.modelUsed,
+              modelFallback: result.stats.modelFallback,
+              fallbackChain: result.stats.fallbackChain,
+              tokensPrompt: result.stats.tokensPrompt,
+              tokensCompletion: result.stats.tokensCompletion,
+              // Crawl statistics (Phase 2 - will be populated when we add crawler tracking)
+              crawlStats: result.stats.crawlStats,
             },
             completedAt: new Date(),
           },
