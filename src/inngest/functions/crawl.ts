@@ -21,6 +21,85 @@ export const processCrawl = inngest.createFunction(
     name: "Process Crawl Job",
     triggers: { event: CRAWL_REQUESTED },
     timeouts: { finish: "30m" }, // Safety net for large crawls (maxPages up to 100)
+
+    // Handle function failures including timeouts
+    onFailure: async ({ event, error }) => {
+      // Extract data from the original event that triggered the function
+      // In onFailure hook, the original event is nested under event.event
+      const originalEvent = (event as { event?: { data?: unknown } }).event;
+      const eventData = originalEvent?.data as
+        | {
+            jobId: string;
+            url: string;
+            correlationId?: string;
+          }
+        | undefined;
+
+      if (!eventData?.jobId) {
+        // Can't process without jobId - log and exit
+        console.error("[Inngest onFailure] Missing jobId in event data", {
+          error: error.message,
+          event,
+        });
+        return;
+      }
+
+      const { jobId, url, correlationId } = eventData;
+
+      const logger = createLogger({
+        jobId,
+        url,
+        correlationId,
+      });
+
+      logger.error("Inngest function failed", {
+        event: "inngest.job.failure_hook",
+        jobId,
+        url,
+        errorName: error.name,
+        errorMessage: error.message,
+        stack: error.stack,
+      });
+
+      try {
+        // Determine failure reason based on error type
+        const isTimeout =
+          error.name === "TimeoutError" ||
+          error.message.includes("timeout") ||
+          error.message.includes("exceeded");
+
+        const failureReason = isTimeout ? "TIMEOUT" : "FUNCTION_ERROR";
+        const errorMessage = isTimeout
+          ? "Job exceeded 30-minute processing timeout"
+          : `Job processing failed: ${error.message}`;
+
+        // Mark job as failed in database
+        await db.crawlJob.update({
+          where: { id: jobId },
+          data: {
+            status: JobStatus.FAILED,
+            error: errorMessage,
+            failureReason,
+            completedAt: new Date(),
+          },
+        });
+
+        logger.info("Job marked as failed via onFailure hook", {
+          event: "inngest.job.failure_hook.success",
+          jobId,
+          failureReason,
+        });
+      } catch (dbError) {
+        // Log but don't throw - we don't want onFailure hook to crash
+        logger.error("Failed to update job in onFailure hook", {
+          event: "inngest.job.failure_hook.error",
+          jobId,
+          dbError: dbError instanceof Error ? dbError.message : String(dbError),
+        });
+      }
+
+      await logger.flush();
+    },
   },
   async ({ event, step }) => {
     const {
