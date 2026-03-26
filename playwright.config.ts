@@ -39,5 +39,11 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL || "",
+      GROQ_API_KEY: process.env.GROQ_API_KEY || "",
+      INNGEST_DEV: process.env.INNGEST_DEV || "",
+      INNGEST_BASE_URL: process.env.INNGEST_BASE_URL || "",
+    },
   },
 });
