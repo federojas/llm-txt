@@ -1,12 +1,19 @@
 import { PageMetadata, SectionGroup } from "@/lib/types";
+import { MetadataAccumulator } from "../metadata-accumulator";
 
 /**
  * Description Generator Interface
  * Generates concise descriptions of web pages
  */
 export interface IDescriptionGenerator {
-  generateDescription(page: PageMetadata): Promise<string>;
-  generateBusinessSummary(homepage: PageMetadata): Promise<string>;
+  generateDescription(
+    page: PageMetadata,
+    metadataAccumulator?: MetadataAccumulator
+  ): Promise<string>;
+  generateBusinessSummary(
+    homepage: PageMetadata,
+    metadataAccumulator?: MetadataAccumulator
+  ): Promise<string>;
   isAvailable(): boolean;
 }
 
@@ -15,7 +22,10 @@ export interface IDescriptionGenerator {
  * Analyzes pages and groups them into logical sections
  */
 export interface ISectionDiscoveryService {
-  discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]>;
+  discoverSections(
+    pages: PageMetadata[],
+    metadataAccumulator?: MetadataAccumulator
+  ): Promise<SectionGroup[]>;
   isAvailable(): boolean;
 }
 

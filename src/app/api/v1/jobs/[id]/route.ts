@@ -54,15 +54,26 @@ export const GET = withRateLimit(
       });
 
       await logger.flush();
+
+      // Extract result data with proper typing
+      const result = job.result as {
+        content?: string;
+        stats?: { pagesFound?: number };
+      } | null;
+
       return NextResponse.json({
         success: true,
         data: {
           id: job.id,
+          url: job.url,
           status: job.status.toLowerCase(),
-          result: job.result,
+          // Result data (only if completed)
+          content: result?.content ?? null,
+          pagesFound: result?.stats?.pagesFound ?? null,
+          // Error (only if failed)
           error: job.error,
+          // Timestamps
           createdAt: job.createdAt,
-          startedAt: job.startedAt,
           completedAt: job.completedAt,
         },
       });

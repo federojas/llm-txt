@@ -17,6 +17,7 @@ import { NotFoundError, InternalServerError } from "@/lib/api";
 import { CrawlConfig, PageMetadata } from "@/lib/types";
 import { GenerateRequest, GenerateResponseData } from "@/lib/api";
 import { createLogger } from "@/lib/logger";
+import { MetadataAccumulator } from "@/lib/content-generation/metadata-accumulator";
 
 export class GenerateLlmsTxt {
   private crawler?: Crawler; // Store crawler instance to access sitemapData
@@ -55,20 +56,20 @@ export class GenerateLlmsTxt {
         );
       }
 
+      // Create metadata accumulator to track API usage
+      const metadataAccumulator = new MetadataAccumulator();
+
       // Generate llms.txt content (passes request for user overrides)
-      const content = await this.generateContent(pages, request);
+      const { content, validation } = await this.generateContent(
+        pages,
+        request,
+        metadataAccumulator
+      );
 
       const duration = Date.now() - startTime;
 
-      // Estimate API calls and token usage for cost tracking
-      // AI mode: ~2 baseline calls (summary + sections) + 1 per page for descriptions
-      // Metadata mode: ~2 baseline calls only (summary + sections)
-      const generationMode = request.generationMode ?? "metadata";
-      const apiCallsCount = generationMode === "ai" ? 2 + pages.length : 2;
-
-      // Estimate tokens: ~500 tokens per API call (rough average for Groq)
-      // This helps track costs: Groq charges ~$0.05-0.10 per 1M tokens
-      const tokensUsed = apiCallsCount * 500;
+      // Extract actual API usage from metadata accumulator
+      const aggregatedMetadata = metadataAccumulator.getAggregated();
 
       logger.info("Generation completed successfully", {
         event: "generate.success",
@@ -76,18 +77,30 @@ export class GenerateLlmsTxt {
         pagesFound: pages.length,
         duration,
         contentLength: content.length,
-        apiCallsCount,
-        tokensUsed,
+        apiCallsCount: aggregatedMetadata.totalApiCalls,
+        tokensUsed: aggregatedMetadata.totalTokensUsed,
+        modelUsed: aggregatedMetadata.primaryModel,
+        modelFallback: aggregatedMetadata.hadFallback,
+        validation: validation.valid,
       });
 
-      // Return structured response with performance metrics
+      // Return structured response with actual performance metrics
       return {
         content,
         stats: {
           pagesFound: pages.length,
           url: config.url,
-          apiCallsCount,
-          tokensUsed,
+          // Actual API usage (not estimated)
+          apiCallsCount: aggregatedMetadata.totalApiCalls,
+          tokensUsed: aggregatedMetadata.totalTokensUsed,
+          tokensPrompt: aggregatedMetadata.totalTokensPrompt,
+          tokensCompletion: aggregatedMetadata.totalTokensCompletion,
+          // Model tracking
+          modelUsed: aggregatedMetadata.primaryModel ?? undefined,
+          modelFallback: aggregatedMetadata.hadFallback,
+          fallbackChain: aggregatedMetadata.fallbackChain,
+          // Quality validation
+          validation,
         },
       };
     } catch (error) {
@@ -171,11 +184,23 @@ export class GenerateLlmsTxt {
 
   /**
    * Generates llms.txt content from crawled pages
+   * Returns content and validation metrics
    */
   private async generateContent(
     pages: PageMetadata[],
-    request: GenerateRequest
-  ): Promise<string> {
+    request: GenerateRequest,
+    metadataAccumulator: MetadataAccumulator
+  ): Promise<{
+    content: string;
+    validation: {
+      valid: boolean;
+      errors: string[];
+      warnings: string[];
+      sectionsCount: number;
+      linkCount: number;
+      lineCount: number;
+    };
+  }> {
     // Generation mode control (Phase 1: User control)
     // Default to "metadata" for fast, reliable results
     const generationMode = request.generationMode ?? "metadata";
@@ -242,7 +267,8 @@ export class GenerateLlmsTxt {
       robotsDirectives,
       request.projectDescription, // Manual description override
       request.titleCleanup, // Manual title cleanup patterns
-      generationMode // Page description mode (not used for section discovery)
+      generationMode, // Page description mode (not used for section discovery)
+      metadataAccumulator // Collect API metadata
     );
   }
 }

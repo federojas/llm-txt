@@ -1,5 +1,6 @@
 import { IDescriptionGenerator } from "../../core/types";
 import { PageMetadata } from "@/lib/types";
+import { MetadataAccumulator } from "../../metadata-accumulator";
 
 /**
  * Metadata Description Generator
@@ -19,7 +20,10 @@ export class MetadataDescriptionGenerator implements IDescriptionGenerator {
     return true; // Always available as fallback
   }
 
-  async generateDescription(page: PageMetadata): Promise<string> {
+  async generateDescription(
+    page: PageMetadata,
+    _metadataAccumulator?: MetadataAccumulator
+  ): Promise<string> {
     // Prefer og:description over regular description
     if (page.ogDescription) {
       return this.cleanDescription(page.ogDescription);
@@ -69,7 +73,10 @@ export class MetadataDescriptionGenerator implements IDescriptionGenerator {
     return title;
   }
 
-  async generateBusinessSummary(homepage: PageMetadata): Promise<string> {
+  async generateBusinessSummary(
+    homepage: PageMetadata,
+    _metadataAccumulator?: MetadataAccumulator
+  ): Promise<string> {
     // Prefer og:description as it's usually the best summary
     if (homepage.ogDescription) {
       return this.cleanDescription(homepage.ogDescription);

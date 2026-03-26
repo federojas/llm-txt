@@ -18,6 +18,15 @@ interface RateLimitState {
   lastUpdated: Date;
 }
 
+export interface GroqApiMetadata {
+  modelUsed: string;
+  modelFallback: boolean;
+  fallbackChain: string[];
+  tokensUsed: number | null;
+  tokensPrompt: number | null;
+  tokensCompletion: number | null;
+}
+
 /**
  * Shared Groq API Client
  * Handles rate limiting, model fallback, and 429 error handling
@@ -78,21 +87,24 @@ export class GroqClient {
 
   /**
    * Execute a Groq API call with rate limiting and fallback handling
+   * Returns both the data and metadata about the API call (model used, tokens, etc.)
    */
   async executeWithFallback<T>(
     apiCall: (
       model: string,
       client: Groq
     ) => Promise<{ data: T; response: Response }>
-  ): Promise<T> {
+  ): Promise<{ data: T; metadata: GroqApiMetadata }> {
     const startTime = Date.now();
     await this.rateLimiter.waitForToken();
     this.checkProactiveSwitch();
 
     let lastError: Error | null = null;
+    const fallbackChain: string[] = [];
 
     for (let i = this.currentModelIndex; i < this.models.length; i++) {
       const model = this.models[i];
+      fallbackChain.push(model.name);
 
       try {
         this.logger.debug("Groq API request", {
@@ -106,6 +118,9 @@ export class GroqClient {
 
         const duration = Date.now() - startTime;
 
+        // Extract token usage from response headers
+        const tokenUsage = this.extractTokenUsage(response);
+
         // Update rate limit state from response headers
         this.updateRateLimitState(response);
 
@@ -113,12 +128,14 @@ export class GroqClient {
           event: "groq.api.success",
           model: model.name,
           duration,
+          tokensUsed: tokenUsage.tokensUsed,
           remainingRequests: this.rateLimitState.remainingRequests,
           remainingTokens: this.rateLimitState.remainingTokens,
         });
 
         // Success! Update current model if we switched
-        if (i !== this.currentModelIndex) {
+        const modelFallback = i !== this.currentModelIndex;
+        if (modelFallback) {
           this.logger.info(`Successfully switched to model: ${model.name}`, {
             event: "groq.model.switch",
             from: this.models[this.currentModelIndex].name,
@@ -129,7 +146,15 @@ export class GroqClient {
           this.currentModelIndex = i;
         }
 
-        return data;
+        return {
+          data,
+          metadata: {
+            modelUsed: model.name,
+            modelFallback,
+            fallbackChain,
+            ...tokenUsage,
+          },
+        };
       } catch (error: unknown) {
         lastError = error as Error;
 
@@ -195,6 +220,44 @@ export class GroqClient {
     }
 
     throw new Error(`Groq API error: ${lastError?.message || "Unknown error"}`);
+  }
+
+  private extractTokenUsage(response: Response): {
+    tokensUsed: number | null;
+    tokensPrompt: number | null;
+    tokensCompletion: number | null;
+  } {
+    try {
+      // Groq returns token usage in x-groq header (JSON encoded)
+      const groqHeader = response.headers.get("x-groq");
+      if (groqHeader) {
+        const groqData = JSON.parse(groqHeader) as {
+          usage?: {
+            total_tokens?: number;
+            prompt_tokens?: number;
+            completion_tokens?: number;
+          };
+        };
+        if (groqData.usage) {
+          return {
+            tokensUsed: groqData.usage.total_tokens ?? null,
+            tokensPrompt: groqData.usage.prompt_tokens ?? null,
+            tokensCompletion: groqData.usage.completion_tokens ?? null,
+          };
+        }
+      }
+    } catch (error) {
+      this.logger.debug("Error parsing token usage from headers", {
+        event: "groq.token_usage.parse_error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return {
+      tokensUsed: null,
+      tokensPrompt: null,
+      tokensCompletion: null,
+    };
   }
 
   private updateRateLimitState(response: Response): void {

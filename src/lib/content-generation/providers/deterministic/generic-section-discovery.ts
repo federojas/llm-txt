@@ -1,5 +1,6 @@
 import { ISectionDiscoveryService } from "../../core/types";
 import { PageMetadata, SectionGroup } from "@/lib/types";
+import { MetadataAccumulator } from "../../metadata-accumulator";
 
 /**
  * Generic Section Discovery (Last Resort)
@@ -28,7 +29,10 @@ export class GenericSectionDiscovery implements ISectionDiscoveryService {
    * Returns all pages in a single generic "Pages" section
    * This ensures output always has at least one section
    */
-  async discoverSections(pages: PageMetadata[]): Promise<SectionGroup[]> {
+  async discoverSections(
+    pages: PageMetadata[],
+    _metadataAccumulator?: MetadataAccumulator
+  ): Promise<SectionGroup[]> {
     console.log(
       `[GenericSectionDiscovery] Using last resort: single "Pages" section with ${pages.length} pages`
     );
