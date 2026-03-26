@@ -35,7 +35,11 @@ export default defineConfig({
 
   // Run dev server before tests
   webServer: {
-    command: "npm run build && npm run start",
+    // In CI, build already happened - just start the server
+    // In local dev, build first
+    command: process.env.CI
+      ? "npm run start"
+      : "npm run build && npm run start",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

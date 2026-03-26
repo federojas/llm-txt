@@ -77,32 +77,22 @@ export const POST = withRateLimit(
       status: "pending",
     });
 
-    // Skip Inngest in preview environments (preview DB != production Inngest DB)
-    const isPreview = process.env.VERCEL_ENV === "preview";
-
-    if (!isPreview) {
-      // Trigger Inngest background job (production only)
-      await inngest.send({
-        name: CRAWL_REQUESTED,
-        data: {
-          jobId: job.id,
-          correlationId, // Pass correlation ID to Inngest for distributed tracing
-          ...requestData,
-        },
-      });
-
-      logger.info("Inngest job triggered", {
-        event: "api.job.triggered",
+    // Trigger Inngest background job
+    // Branch environments automatically isolated via client.ts
+    await inngest.send({
+      name: CRAWL_REQUESTED,
+      data: {
         jobId: job.id,
-        inngestEvent: CRAWL_REQUESTED,
-      });
-    } else {
-      logger.info("Preview environment - Inngest skipped", {
-        event: "api.job.preview_skip",
-        jobId: job.id,
-        reason: "Preview deployments do not process jobs",
-      });
-    }
+        correlationId, // Pass correlation ID to Inngest for distributed tracing
+        ...requestData,
+      },
+    });
+
+    logger.info("Inngest job triggered", {
+      event: "api.job.triggered",
+      jobId: job.id,
+      inngestEvent: CRAWL_REQUESTED,
+    });
 
     // Return job ID immediately (async pattern)
     const response = NextResponse.json(
@@ -110,10 +100,6 @@ export const POST = withRateLimit(
         jobId: job.id,
         status: "pending",
         statusUrl: `/api/v1/jobs/${job.id}`,
-        ...(isPreview && {
-          message:
-            "Preview environment: Job created but will not be processed. Use production for actual crawling.",
-        }),
       }),
       { status: 202 } // 202 Accepted
     );
