@@ -36,16 +36,9 @@ export const GET = withRateLimit(
           jobId: id,
         });
         await logger.flush();
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: "NOT_FOUND",
-              message: "Job not found",
-            },
-          },
-          { status: 404 }
-        );
+        return NextResponse.json(errorResponse("NOT_FOUND", "Job not found"), {
+          status: 404,
+        });
       }
 
       logger.info("Job status retrieved successfully", {
@@ -62,9 +55,8 @@ export const GET = withRateLimit(
         stats?: { pagesFound?: number };
       } | null;
 
-      return NextResponse.json({
-        success: true,
-        data: {
+      return NextResponse.json(
+        successResponse({
           id: job.id,
           url: job.url,
           status: job.status.toLowerCase(),
@@ -76,8 +68,8 @@ export const GET = withRateLimit(
           // Timestamps
           createdAt: job.createdAt,
           completedAt: job.completedAt,
-        },
-      });
+        })
+      );
     } catch (error) {
       logger.error("Failed to fetch job status", {
         event: "api.job.status.error",
@@ -86,13 +78,7 @@ export const GET = withRateLimit(
       });
       await logger.flush();
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INTERNAL_ERROR",
-            message: "Failed to fetch job status",
-          },
-        },
+        errorResponse("INTERNAL_ERROR", "Failed to fetch job status"),
         { status: 500 }
       );
     }
