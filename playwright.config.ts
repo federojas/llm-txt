@@ -49,6 +49,7 @@ export default defineConfig({
       env: {
         INNGEST_DEV: "true",
         INNGEST_BASE_URL: "http://localhost:8288",
+        NODE_TLS_REJECT_UNAUTHORIZED: "0", // Allow SSL issues with test sites
       },
     },
   ],

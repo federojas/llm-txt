@@ -1,14 +1,9 @@
 import { withAxiom } from "next-axiom";
 import { withSentryConfig } from "@sentry/nextjs";
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  output: "standalone", // For Docker and standalone deployments
-};
 
 // Wrap with both Axiom and Sentry
 // Order matters: Sentry outer, Axiom inner
-export default withSentryConfig(withAxiom(nextConfig), {
+export default withSentryConfig(withAxiom({}), {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
