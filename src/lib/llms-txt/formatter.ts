@@ -16,6 +16,8 @@ import type { RobotsDirectives } from "@/lib/http/robots";
 import { scoreAndFilterPages } from "@/lib/crawling/link-scoring";
 import { createQualityGateFilter } from "./quality-gates";
 import type { TitleCleanup } from "@/lib/api/dtos/llms-txt";
+import { validateLlmsTxtFormat } from "./spec";
+import { getLogger } from "@/lib/logger";
 
 /**
  * Formatter Service
@@ -569,33 +571,62 @@ export class Formatter {
       lines.push("");
     }
 
-    return lines.join("\n").trim() + "\n";
+    const content = lines.join("\n").trim() + "\n";
+
+    // Validate output against canonical spec (non-blocking, for observability)
+    this.validateOutput(content);
+
+    return content;
+  }
+
+  /**
+   * Validate generated output against canonical spec
+   * Non-blocking: logs warnings but doesn't throw
+   * Provides observability for format regressions
+   */
+  private validateOutput(content: string): void {
+    const logger = getLogger();
+    const validation = validateLlmsTxtFormat(content);
+
+    if (!validation.valid) {
+      // Log errors for monitoring, but don't block generation
+      logger.warn("Generated llms.txt has format issues", {
+        event: "llms_txt.validation.failed",
+        errors: validation.errors,
+        warnings: validation.warnings,
+        stats: validation.stats,
+      });
+      console.warn("[Format Validation] Issues detected:", validation.errors);
+    } else if (validation.warnings.length > 0) {
+      // Log quality warnings (not fatal, just informational)
+      logger.info("Generated llms.txt has quality warnings", {
+        event: "llms_txt.validation.warnings",
+        warnings: validation.warnings,
+        stats: validation.stats,
+      });
+      console.log("[Format Validation] Warnings:", validation.warnings);
+    } else {
+      // Success: log stats for monitoring
+      logger.info("Generated llms.txt passed validation", {
+        event: "llms_txt.validation.success",
+        stats: validation.stats,
+      });
+    }
   }
 }
 
 /**
  * Validate llms.txt format
+ * @deprecated Use validateLlmsTxtFormat from @/lib/llms-txt/spec instead
+ * This is kept for backwards compatibility
  */
 export function validateLlmsTxt(content: string): {
   valid: boolean;
   errors: string[];
 } {
-  const errors: string[] = [];
-  const lines = content.split("\n");
-
-  // Check for H1 (required)
-  if (!lines.some((line) => line.startsWith("# "))) {
-    errors.push("Missing required H1 heading (project name)");
-  }
-
-  // Check for multiple H1s
-  const h1Count = lines.filter((line) => line.startsWith("# ")).length;
-  if (h1Count > 1) {
-    errors.push("Multiple H1 headings found (only one allowed)");
-  }
-
+  const result = validateLlmsTxtFormat(content);
   return {
-    valid: errors.length === 0,
-    errors,
+    valid: result.valid,
+    errors: result.errors,
   };
 }
