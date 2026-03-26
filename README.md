@@ -330,15 +330,6 @@ TODO ADD DEMO VIDEO / SCREENSHOTS
 
 Try it live at [llm-txt-nine.vercel.app](https://llm-txt-nine.vercel.app/)
 
-**Demo workflow:**
-
-1. Enter a URL (e.g., `https://youtube.com` or `https://www.fastht.ml/`)
-2. Select preset (Quick for 50 pages, Thorough for 150 pages)
-3. Click "Generate llms.txt"
-4. Wait for crawling to complete (~30-90 seconds)
-5. Review the generated file
-6. Copy to clipboard or download
-
 ## 🔗 Resources
 
 - [llms.txt Specification](https://llmstxt.org/)
