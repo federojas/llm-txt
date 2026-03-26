@@ -117,8 +117,10 @@ export function generateCorrelationId(): string {
 /**
  * Default export: logger factory
  */
-export default {
+const logger = {
   createLogger,
   getLogger,
   generateCorrelationId,
 };
+
+export default logger;

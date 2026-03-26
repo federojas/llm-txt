@@ -43,6 +43,7 @@ function parseSitemapXml(
           lastmod,
         });
       }
+      return; // Explicit return for TypeScript noImplicitReturns
     });
 
     urls.sort((a, b) => (b.priority || 0) - (a.priority || 0));

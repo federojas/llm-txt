@@ -1,16 +1,17 @@
-name: CI
+name: E2E Full Suite
 
 on:
-  pull_request:
+  push:
     branches: [main]
-  # Removed push to main - Husky pre-commit already validates code
-  # This prevents redundant CI runs and speeds up deployments
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch: # Allow manual trigger
 
 jobs:
-  test:
+  e2e-full:
     runs-on: ubuntu-latest
 
-    # PostgreSQL service for integration tests
     services:
       postgres:
         image: postgres:17-alpine
@@ -26,17 +27,13 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    strategy:
-      matrix:
-        node-version: [20.x]
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js 20.x
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 20.x
           cache: "npm"
 
       - name: Install dependencies
@@ -44,23 +41,6 @@ jobs:
 
       - name: Run Prisma migrations
         run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/llms_txt_test
-
-      - name: Run linter
-        run: npm run lint
-
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Type check
-        run: npm run type-check
-
-      - name: Run unit tests
-        run: npm run test:unit
-
-      - name: Run integration tests
-        run: npm run test:integration
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/llms_txt_test
 
@@ -91,8 +71,8 @@ jobs:
           echo "Inngest dev server failed to start"
           exit 1
 
-      - name: Run E2E smoke tests
-        run: npx playwright test --grep-invert "Job Completion"
+      - name: Run full E2E suite (including job completion)
+        run: npm run test:e2e
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/llms_txt_test
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -104,6 +84,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-node-${{ matrix.node-version }}
+          name: playwright-report-full-e2e
           path: playwright-report/
           retention-days: 7

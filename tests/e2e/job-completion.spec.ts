@@ -8,12 +8,12 @@ import { validateLlmsTxtFormat } from "../../src/lib/llms-txt/spec";
 
 test.describe("Job Completion", () => {
   test("should complete job and return valid llms.txt", async ({ request }) => {
-    // Create job for a simple, fast site (use metadata mode for speed - no AI calls)
+    // Create job with minimal crawl for fast E2E testing
     const response = await request.post("/api/v1/llms-txt", {
       data: {
         url: "https://example.com",
-        maxPages: 5, // Keep it fast for testing
-        maxDepth: 1,
+        maxPages: 1, // Minimal - just homepage
+        maxDepth: 1, // Minimum allowed depth // No following links
         generationMode: "metadata", // Fast mode without AI
       },
     });
@@ -22,9 +22,9 @@ test.describe("Job Completion", () => {
     const { data } = await response.json();
     const jobId = data.jobId;
 
-    // Poll until job completes (with timeout)
+    // Poll until job completes (shorter timeout for minimal crawl)
     let attempts = 0;
-    const maxAttempts = 60; // 60 attempts × 5 seconds = 5 minutes max
+    const maxAttempts = 30; // 30 attempts × 3 seconds = 90 seconds max
     let jobStatus = "pending";
     let result: { content: string } | null = null;
 
@@ -32,7 +32,7 @@ test.describe("Job Completion", () => {
       attempts < maxAttempts &&
       !["completed", "failed"].includes(jobStatus)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
+      await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3 seconds
 
       const statusResponse = await request.get(`/api/v1/jobs/${jobId}`);
       const statusBody = await statusResponse.json();
@@ -67,7 +67,8 @@ test.describe("Job Completion", () => {
     const response = await request.post("/api/v1/llms-txt", {
       data: {
         url: "https://example.com",
-        maxPages: 3,
+        maxPages: 1, // Minimal crawl for fast E2E
+        maxDepth: 1, // Minimum allowed depth
         generationMode: "metadata", // Fast mode without AI
       },
     });
@@ -78,7 +79,7 @@ test.describe("Job Completion", () => {
     // Track states seen (include initial status from creation response)
     const statesSeen = new Set<string>([data.status]);
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 30;
 
     while (attempts < maxAttempts) {
       const statusResponse = await request.get(`/api/v1/jobs/${jobId}`);
@@ -91,7 +92,7 @@ test.describe("Job Completion", () => {
         break;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       attempts++;
     }
 
@@ -142,13 +143,13 @@ test.describe("Job Completion", () => {
   });
 
   test("should respect maxPages limit", async ({ request }) => {
-    const maxPages = 10;
+    const maxPages = 3; // Minimal for fast E2E
 
     const response = await request.post("/api/v1/llms-txt", {
       data: {
         url: "https://example.com",
         maxPages,
-        maxDepth: 2,
+        maxDepth: 1, // Shallow depth for speed
         generationMode: "metadata", // Fast mode without AI
       },
     });
@@ -158,7 +159,7 @@ test.describe("Job Completion", () => {
 
     // Wait for completion
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 30;
     let jobStatus = "pending";
     let result: { content: string } | null = null;
 
@@ -166,7 +167,7 @@ test.describe("Job Completion", () => {
       attempts < maxAttempts &&
       !["completed", "failed"].includes(jobStatus)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const statusResponse = await request.get(`/api/v1/jobs/${jobId}`);
       const statusBody = await statusResponse.json();

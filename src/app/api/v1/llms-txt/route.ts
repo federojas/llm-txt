@@ -47,11 +47,26 @@ export const POST = withRateLimit(
       generationMode: requestData.generationMode,
     });
 
-    // Create job in database
+    // Create job in database with correlation ID and request metadata
     const job = await db.crawlJob.create({
       data: {
         url: requestData.url,
         status: JobStatus.PENDING,
+        correlationId,
+        // Store request metadata as JSON for analytics and debugging
+        requestMetadata: JSON.parse(
+          JSON.stringify({
+            maxPages: requestData.maxPages,
+            maxDepth: requestData.maxDepth,
+            generationMode: requestData.generationMode,
+            languageStrategy: requestData.languageStrategy,
+            includePatterns: requestData.includePatterns,
+            excludePatterns: requestData.excludePatterns,
+            projectName: requestData.projectName,
+            projectDescription: requestData.projectDescription,
+            titleCleanup: requestData.titleCleanup,
+          })
+        ),
       },
     });
 
@@ -63,6 +78,7 @@ export const POST = withRateLimit(
     });
 
     // Trigger Inngest background job
+    // Branch environments automatically isolated via client.ts
     await inngest.send({
       name: CRAWL_REQUESTED,
       data: {

@@ -13,8 +13,27 @@ model CrawlJob {
   id          String    @id @default(cuid())
   url         String
   status      JobStatus @default(PENDING)
-  result      Json?
-  error       String?
+
+  // Results
+  result         Json?
+  resultMetadata Json? // sections count, output size, quality metrics
+
+  // Request tracking
+  requestMetadata Json?   // maxPages, generationMode, languageStrategy, patterns, etc.
+  correlationId   String? @unique // distributed tracing across API → Inngest → logs
+
+  // Performance metrics
+  duration        Int? // milliseconds
+  pagesProcessed  Int? // actual pages crawled
+  apiCallsCount   Int? // total Groq API calls made
+  tokensUsed      Int? // for cost tracking
+
+  // Error handling
+  error          String?
+  failureReason  String? // TIMEOUT, API_ERROR, VALIDATION_ERROR, RATE_LIMIT, etc.
+  attemptCount   Int     @default(1)
+
+  // Lifecycle timestamps
   createdAt   DateTime  @default(now())
   startedAt   DateTime?
   completedAt DateTime?
@@ -22,6 +41,7 @@ model CrawlJob {
   @@index([status, createdAt])
   @@index([createdAt])
   @@index([url])
+  @@index([correlationId])
   @@map("crawl_jobs")
 }
 

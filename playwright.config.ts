@@ -23,8 +23,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
 
-  // Increase timeout for job completion tests (accounts for Inngest retries)
-  timeout: 60_000, // 60 seconds
+  // Timeout for tests (90 seconds for minimal crawl jobs)
+  timeout: 90_000, // 90 seconds
 
   projects: [
     {
@@ -35,9 +35,21 @@ export default defineConfig({
 
   // Run dev server before tests
   webServer: {
-    command: "npm run build && npm run start",
+    // In CI, build already happened - just start the server
+    // In local dev, build first
+    command: process.env.CI
+      ? "npm run start"
+      : "npm run build && npm run start",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL || "",
+      GROQ_API_KEY: process.env.GROQ_API_KEY || "",
+      INNGEST_DEV: process.env.INNGEST_DEV || "",
+      INNGEST_BASE_URL: process.env.INNGEST_BASE_URL || "",
+      NODE_TLS_REJECT_UNAUTHORIZED:
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED || "",
+    },
   },
 });

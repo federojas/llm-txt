@@ -31,18 +31,15 @@ import { ISectionDiscoveryService } from "../../core/types";
  * Part of the fallback chain when AI is unavailable.
  */
 export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
-  private readonly minSectionSize: number;
   private readonly maxSections: number;
   private readonly minAvgRelevance: number;
   private readonly ugcThreshold: number;
 
   constructor(
-    minSectionSize: number = 2,
     maxSections: number = 10,
     minAvgRelevance: number = 30, // Minimum average relevance score
     ugcThreshold: number = 15 // Pages threshold for UGC detection
   ) {
-    this.minSectionSize = minSectionSize;
     this.maxSections = maxSections;
     this.minAvgRelevance = minAvgRelevance;
     this.ugcThreshold = ugcThreshold;
