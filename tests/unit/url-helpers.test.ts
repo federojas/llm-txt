@@ -4,7 +4,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { matchesPattern, toAbsoluteUrl, extractDomain } from "./helpers";
+import {
+  matchesPattern,
+  toAbsoluteUrl,
+  extractDomain,
+} from "@/lib/url/helpers";
 
 describe("matchesPattern", () => {
   describe("wildcard patterns", () => {
