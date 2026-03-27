@@ -282,42 +282,38 @@ export class Crawler {
       this.sitemapData.set(normalizeUrl(sitemapUrl.url), sitemapUrl);
     }
 
+    // Filter out language variants before processing
+    const filteredUrls = sitemapUrls.filter(
+      ({ url }) => !isLanguageVariant(url)
+    );
+
+    if (filteredUrls.length < sitemapUrls.length) {
+      this.logger.info("Filtered language variants from sitemap", {
+        event: "crawler.sitemap.filter",
+        original: sitemapUrls.length,
+        filtered: filteredUrls.length,
+        removed: sitemapUrls.length - filteredUrls.length,
+      });
+    }
+
     this.logger.info("Processing sitemap URLs", {
       event: "crawler.sitemap.processing",
-      urlCount: sitemapUrls.length,
+      urlCount: filteredUrls.length,
       pagesBefore: this.results.length,
     });
 
-    // Process URLs from sitemap in batches
-    const batches = this.chunkArray(sitemapUrls, this.config.concurrency);
-    let sitemapBatchCount = 0;
-
-    for (const batch of batches) {
+    // Process URLs from sitemap sequentially (fetch at depth 0)
+    let fetchedCount = 0;
+    for (const { url } of filteredUrls) {
       if (this.results.length >= this.config.maxPages) break;
-
-      sitemapBatchCount++;
-      const batchStart = Date.now();
-
-      await Promise.all(
-        batch.map(async ({ url }) => {
-          if (this.results.length >= this.config.maxPages) return;
-          await this.fetchAndParse(url, 0);
-        })
-      );
-
-      const batchDuration = Date.now() - batchStart;
-      this.logger.debug(`Sitemap batch ${sitemapBatchCount} completed`, {
-        event: "crawler.sitemap.batch",
-        batchSize: batch.length,
-        batchDuration,
-        pagesFound: this.results.length,
-      });
+      await this.fetchAndParse(url, 0);
+      fetchedCount++;
     }
 
     this.logger.info("Sitemap processing complete", {
       event: "crawler.sitemap.complete",
       pagesAfter: this.results.length,
-      totalBatches: sitemapBatchCount,
+      urlsProcessed: fetchedCount,
       providedEnoughUrls,
     });
 
@@ -740,17 +736,6 @@ export class Crawler {
 
     // Default: skip non-English
     return true;
-  }
-
-  /**
-   * Chunk array into batches
-   */
-  private chunkArray<T>(array: T[], size: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
-    }
-    return chunks;
   }
 
   /**
