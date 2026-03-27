@@ -45,7 +45,9 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       DATABASE_URL: process.env.DATABASE_URL || "",
-      GROQ_API_KEY: process.env.GROQ_API_KEY || "",
+      // Prefer TEST_GROQ_API_KEY for tests, fallback to GROQ_API_KEY for local dev
+      GROQ_API_KEY:
+        process.env.TEST_GROQ_API_KEY || process.env.GROQ_API_KEY || "",
       INNGEST_DEV: process.env.INNGEST_DEV || "",
       INNGEST_BASE_URL: process.env.INNGEST_BASE_URL || "",
       NODE_TLS_REJECT_UNAUTHORIZED:

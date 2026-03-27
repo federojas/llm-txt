@@ -12,7 +12,15 @@ import { generateLlmsTxtUseCase } from "@/lib/llms-txt";
 import { validateLlmsTxtFormat } from "@/lib/llms-txt/spec";
 
 describe("AI-Powered Generation", () => {
+  // Use TEST_GROQ_API_KEY in tests, fallback to GROQ_API_KEY for local dev
+  const apiKey = process.env.TEST_GROQ_API_KEY || process.env.GROQ_API_KEY;
+
   test("should generate quality llms.txt for real site with AI", async () => {
+    if (!apiKey) {
+      console.warn("Skipping AI test: No API key available");
+      return;
+    }
+
     const result = await generateLlmsTxtUseCase.execute({
       url: "https://www.fastht.ml",
       maxPages: 20,
@@ -47,6 +55,11 @@ describe("AI-Powered Generation", () => {
   }, 600_000); // 10 minutes
 
   test("should handle sites with complex structure", async () => {
+    if (!apiKey) {
+      console.warn("Skipping AI test: No API key available");
+      return;
+    }
+
     const result = await generateLlmsTxtUseCase.execute({
       url: "https://nextjs.org",
       maxPages: 30,
