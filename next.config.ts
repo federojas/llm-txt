@@ -1,9 +1,15 @@
 import { withAxiom } from "next-axiom";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// Base Next.js config
+const nextConfig = {
+  // Disable dev indicators (build activity, ISR status)
+  devIndicators: false as const,
+};
+
 // Wrap with both Axiom and Sentry
 // Order matters: Sentry outer, Axiom inner
-export default withSentryConfig(withAxiom({}), {
+export default withSentryConfig(withAxiom(nextConfig), {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
