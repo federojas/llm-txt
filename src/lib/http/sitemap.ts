@@ -56,16 +56,15 @@ function parseSitemapXml(
 
 /**
  * Extract child sitemap URLs from sitemap index
+ * Returns all child sitemaps (no hard limit - dynamic processing)
  */
 function parseSitemapIndex(xmlContent: string): string[] {
   try {
     const $ = cheerio.load(xmlContent, { xmlMode: true });
     const sitemapElements = $("sitemap loc");
 
-    return sitemapElements
-      .map((_, el) => $(el).text())
-      .get()
-      .slice(0, 5);
+    return sitemapElements.map((_, el) => $(el).text()).get();
+    // No .slice() limit - let the fetching loop decide when to stop
   } catch (error) {
     console.error("Failed to parse sitemap index:", error);
     return [];
@@ -123,18 +122,32 @@ export async function fetchAndParseSitemap(
 
     // Check if it's a sitemap index
     if (isSitemapIndex(xmlContent)) {
-      // Fetch and parse child sitemaps
+      // Fetch and parse child sitemaps dynamically until we have enough URLs
       const childUrls = parseSitemapIndex(xmlContent);
       const allUrls: SitemapUrl[] = [];
 
-      for (const childSitemapUrl of childUrls) {
-        if (allUrls.length >= maxUrls) break;
+      console.log(
+        `[Sitemap Index] Found ${childUrls.length} child sitemaps, collecting up to ${maxUrls} URLs`
+      );
 
+      for (let i = 0; i < childUrls.length; i++) {
+        if (allUrls.length >= maxUrls) {
+          console.log(
+            `[Sitemap Index] Reached target: ${allUrls.length}/${maxUrls} URLs from ${i} child sitemaps`
+          );
+          break;
+        }
+
+        const childSitemapUrl = childUrls[i];
         const childResults = await fetchAndParseSitemap(
           childSitemapUrl,
           maxUrls - allUrls.length
         );
         allUrls.push(...childResults);
+
+        console.log(
+          `[Sitemap Index] Processed ${i + 1}/${childUrls.length} child sitemaps, collected ${allUrls.length}/${maxUrls} URLs`
+        );
       }
 
       return allUrls.slice(0, maxUrls);

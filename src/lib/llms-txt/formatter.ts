@@ -60,6 +60,11 @@ export class Formatter {
       lineCount: number;
     };
   }> {
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(`[Output Generation] Starting with ${pages.length} pages`);
+    console.log(`${"=".repeat(70)}`);
+
+    const structureStart = Date.now();
     const output = await this.buildStructure(
       pages,
       projectName,
@@ -70,7 +75,24 @@ export class Formatter {
       generationMode,
       metadataAccumulator
     );
-    return this.format(output);
+    const structureDuration = Date.now() - structureStart;
+    console.log(`[Timing] Structure building: ${structureDuration}ms`);
+
+    const formatStart = Date.now();
+    const result = this.format(output);
+    const formatDuration = Date.now() - formatStart;
+    console.log(
+      `[Timing] Final formatting: ${formatDuration}ms (${result.validation.lineCount} lines, ${result.content.length} chars)`
+    );
+
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(`[Output Generation] Complete`);
+    console.log(`  Sections: ${result.validation.sectionsCount}`);
+    console.log(`  Links: ${result.validation.linkCount}`);
+    console.log(`  Content length: ${result.content.length} chars`);
+    console.log(`${"=".repeat(70)}\n`);
+
+    return result;
   }
 
   /**
@@ -97,6 +119,7 @@ export class Formatter {
     const name = this.determineProjectName(homepage, projectName);
 
     // Score and filter pages by relevance (if sitemap data available)
+    const scoringStart = Date.now();
     let filteredPages = pages;
     if (sitemapData) {
       const scoredPages = await scoreAndFilterPages(pages, {
@@ -111,8 +134,13 @@ export class Formatter {
         relevanceScore: score.totalScore,
       }));
 
+      const scoringDuration = Date.now() - scoringStart;
       console.log(
-        `[Link Scoring] Filtered ${pages.length} pages → ${filteredPages.length} (threshold: 30)`
+        `[Link Scoring] Filtered ${pages.length} pages → ${filteredPages.length} (threshold: 30) in ${scoringDuration}ms`
+      );
+    } else {
+      console.log(
+        `[Link Scoring] Skipped - no sitemap data (using all ${pages.length} pages)`
       );
     }
 
@@ -127,34 +155,48 @@ export class Formatter {
       console.log("[Manual Override] Using provided project description");
     } else {
       // Generate via AI
+      const summaryStart = Date.now();
       const summaryResponse =
         await this.descriptionGenerator.generateBusinessSummary(
           homepage,
           metadataAccumulator
         );
+      const summaryDuration = Date.now() - summaryStart;
+      console.log(`[Timing] Business summary generation: ${summaryDuration}ms`);
+
       const parsed = this.parseSummaryResponse(summaryResponse);
       summary = parsed.summary;
       details = parsed.details;
     }
 
     // Generate descriptions for filtered pages only (saves API calls)
+    const descriptionsStart = Date.now();
     const aiDescriptions = await this.generateDescriptions(
       filteredPages,
       metadataAccumulator
     );
+    const descriptionsDuration = Date.now() - descriptionsStart;
+    console.log(
+      `[Timing] Page descriptions generation: ${descriptionsDuration}ms (${filteredPages.length} pages, ${(descriptionsDuration / filteredPages.length).toFixed(0)}ms/page avg)`
+    );
 
     // Apply manual title cleanup first (inspired by llmstxt --replace-title)
+    const titleCleanupStart = Date.now();
     let allTitles = filteredPages.map((p) => p.title);
     if (titleCleanup) {
       allTitles = this.applyTitleCleanup(allTitles, titleCleanup);
     }
 
-    // Then clean with AI (removes redundant suffixes like "About - Site - Site")
+    // Then clean with pattern-based cleaning (removes redundant suffixes like "About - Site - Site")
     const cleanedTitles = await this.titleCleaning.cleanTitles(allTitles);
     const cleanedTitleMap = new Map<string, string>();
     filteredPages.forEach((page, idx) => {
       cleanedTitleMap.set(page.url, cleanedTitles[idx]);
     });
+    const titleCleanupDuration = Date.now() - titleCleanupStart;
+    console.log(
+      `[Timing] Title cleanup: ${titleCleanupDuration}ms (${filteredPages.length} titles)`
+    );
 
     // Separate homepage from other pages
     const nonHomepagePages = filteredPages.filter((p) => p !== homepage);
@@ -170,11 +212,23 @@ export class Formatter {
     console.log(
       `[Section Discovery] Using AI-powered semantic clustering (${generationMode} mode)`
     );
+    const sectionStart = Date.now();
     const sectionGroups = await this.sectionDiscovery.discoverSections(
       nonHomepagePages,
       metadataAccumulator
     );
+    const sectionDuration = Date.now() - sectionStart;
+    console.log(
+      `[Timing] Section discovery: ${sectionDuration}ms (${nonHomepagePages.length} pages)`
+    );
+    console.log(
+      `[Section Discovery] Found ${sectionGroups.length} groups:`,
+      sectionGroups
+        .map((g) => `"${g.name}" (${g.pageIndexes.length} pages)`)
+        .join(", ")
+    );
 
+    const buildSectionsStart = Date.now();
     const sections = this.buildSectionsFromAI(
       nonHomepagePages,
       sectionGroups,
@@ -183,10 +237,19 @@ export class Formatter {
       cleanedTitleMap,
       externalLinks
     );
+    const buildSectionsDuration = Date.now() - buildSectionsStart;
+    console.log(
+      `[Timing] Section building: ${buildSectionsDuration}ms (${sections.length} sections created)`
+    );
 
     // Separate optional/secondary content
+    const qualityGatesStart = Date.now();
     const { mainSections, optionalSection } =
       this.separateOptionalContent(sections);
+    const qualityGatesDuration = Date.now() - qualityGatesStart;
+    console.log(
+      `[Timing] Quality gates: ${qualityGatesDuration}ms (${mainSections.length} main, ${optionalSection?.links.length ?? 0} optional)`
+    );
 
     return {
       projectName: name,
