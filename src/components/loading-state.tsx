@@ -35,7 +35,7 @@ export function LoadingState({ status }: LoadingStateProps) {
       case "pending":
         return "warning" as const;
       case "processing":
-        return "default" as const;
+        return "info" as const;
       case "completed":
         return "success" as const;
       case "failed":

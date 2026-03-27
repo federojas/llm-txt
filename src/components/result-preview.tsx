@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle2, Download, Copy, Check } from "lucide-react";
+import { CheckCircle2, Download, Copy, Check, RotateCcw } from "lucide-react";
 
 interface ResultPreviewProps {
   content: string;
@@ -60,6 +60,10 @@ export function ResultPreview({ content, stats, onReset }: ResultPreviewProps) {
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Preview</CardTitle>
           <div className="flex gap-2">
+            <Button onClick={onReset} variant="outline" size="sm">
+              <RotateCcw className="h-4 w-4" />
+              Restart
+            </Button>
             <Button
               onClick={() => setIsEditing(!isEditing)}
               variant="outline"
@@ -102,12 +106,6 @@ export function ResultPreview({ content, stats, onReset }: ResultPreviewProps) {
           )}
         </CardContent>
       </Card>
-
-      <div className="flex justify-center">
-        <Button onClick={onReset} variant="outline" size="lg">
-          Generate another llms.txt
-        </Button>
-      </div>
     </div>
   );
 }
