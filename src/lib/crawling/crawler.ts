@@ -109,6 +109,23 @@ export class Crawler {
             event: "crawler.robots_txt.crawl_delay",
             crawlDelaySeconds,
           });
+
+          // Reduce concurrency for sites with explicit crawl-delay (they want slow crawling)
+          // Balance between respecting delay and reasonable performance
+          if (crawlDelaySeconds >= 1) {
+            const originalConcurrency = this.config.concurrency;
+            this.config.concurrency = Math.min(this.config.concurrency, 5);
+            this.logger.info(
+              `Reduced concurrency due to crawl-delay directive`,
+              {
+                event: "crawler.concurrency.reduced",
+                crawlDelaySeconds,
+                originalConcurrency,
+                newConcurrency: this.config.concurrency,
+                effectiveRatePerSec: this.config.concurrency,
+              }
+            );
+          }
         }
       } catch (error) {
         this.logger.warn("Failed to fetch robots.txt, continuing without it", {
@@ -123,11 +140,62 @@ export class Crawler {
       await this.fetchAndParse(homepageUrl, 0);
 
       // Try sitemap first
-      const usedSitemap = await this.crawlFromSitemap();
+      const sitemapStart = Date.now();
+      const { usedSitemap, providedEnoughUrls } = await this.crawlFromSitemap();
+      const sitemapDuration = Date.now() - sitemapStart;
 
-      // If sitemap didn't provide enough pages, crawl manually
-      if (!usedSitemap || this.results.length < this.config.maxPages) {
+      if (usedSitemap) {
+        this.logger.info("Sitemap crawl completed", {
+          event: "crawler.sitemap.timing",
+          duration: sitemapDuration,
+          pagesFound: this.results.length,
+          providedEnoughUrls,
+        });
+      }
+
+      // Only run BFS if:
+      // 1. No sitemap found, OR
+      // 2. Sitemap didn't provide enough URLs (< maxPages), OR
+      // 3. Sitemap provided URLs but many failed during fetch (results < maxPages)
+      const shouldRunBFS =
+        !usedSitemap ||
+        !providedEnoughUrls ||
+        this.results.length < this.config.maxPages;
+
+      if (shouldRunBFS) {
+        const reason = !usedSitemap
+          ? "no sitemap found"
+          : !providedEnoughUrls
+            ? "sitemap provided insufficient URLs"
+            : "many sitemap URLs failed to fetch";
+
+        this.logger.info(`Running BFS crawl: ${reason}`, {
+          event: "crawler.bfs.trigger",
+          usedSitemap,
+          providedEnoughUrls,
+          resultsSoFar: this.results.length,
+          maxPages: this.config.maxPages,
+        });
+
+        const bfsStart = Date.now();
         await this.crawlFromHomepage();
+        const bfsDuration = Date.now() - bfsStart;
+
+        this.logger.info("BFS crawl completed", {
+          event: "crawler.bfs.timing",
+          duration: bfsDuration,
+          pagesFound: this.results.length,
+        });
+      } else {
+        this.logger.info(
+          "Skipping BFS crawl: sitemap provided sufficient URLs",
+          {
+            event: "crawler.bfs.skipped",
+            providedUrls: this.sitemapData.size,
+            successfullyFetched: this.results.length,
+            maxPages: this.config.maxPages,
+          }
+        );
       }
 
       // No validation needed - both strategies handle empty results gracefully
@@ -137,7 +205,13 @@ export class Crawler {
         pagesFound: this.results.length,
         sitemapEntries: this.sitemapData.size,
         usedSitemap,
+        ranBFS: shouldRunBFS,
       });
+
+      // Console log for easy visibility in Docker logs
+      console.log(
+        `[Crawler Summary] Pages: ${this.results.length}, Sitemap: ${usedSitemap ? "yes" : "no"}, BFS: ${shouldRunBFS ? "yes" : "no"}, Concurrency: ${this.config.concurrency}`
+      );
 
       this.updateProgress({
         status: "complete",
@@ -163,10 +237,16 @@ export class Crawler {
 
   /**
    * Try to crawl from sitemap
+   * Returns: { usedSitemap: boolean, providedEnoughUrls: boolean }
+   * - usedSitemap: whether a sitemap was found and used
+   * - providedEnoughUrls: whether sitemap provided >= maxPages URLs (before fetching)
    */
-  private async crawlFromSitemap(): Promise<boolean> {
+  private async crawlFromSitemap(): Promise<{
+    usedSitemap: boolean;
+    providedEnoughUrls: boolean;
+  }> {
     const sitemapUrl = await discoverSitemap(this.config.url);
-    if (!sitemapUrl) return false;
+    if (!sitemapUrl) return { usedSitemap: false, providedEnoughUrls: false };
 
     this.updateProgress({
       status: "crawling",
@@ -180,12 +260,17 @@ export class Crawler {
       sitemapUrl,
       this.config.maxPages
     );
-    if (sitemapUrls.length === 0) return false;
+    if (sitemapUrls.length === 0)
+      return { usedSitemap: false, providedEnoughUrls: false };
+
+    // Track if sitemap provided enough URLs (before fetching fails)
+    const providedEnoughUrls = sitemapUrls.length >= this.config.maxPages;
 
     this.logger.info(`Found ${sitemapUrls.length} URLs in sitemap`, {
       event: "crawler.sitemap.found",
       urlCount: sitemapUrls.length,
       sitemapUrl,
+      providedEnoughUrls,
     });
 
     // Sort by priority (highest first) to crawl important pages before hitting limit
@@ -197,32 +282,42 @@ export class Crawler {
       this.sitemapData.set(normalizeUrl(sitemapUrl.url), sitemapUrl);
     }
 
+    // Filter out language variants before processing
+    const filteredUrls = sitemapUrls.filter(
+      ({ url }) => !isLanguageVariant(url)
+    );
+
+    if (filteredUrls.length < sitemapUrls.length) {
+      this.logger.info("Filtered language variants from sitemap", {
+        event: "crawler.sitemap.filter",
+        original: sitemapUrls.length,
+        filtered: filteredUrls.length,
+        removed: sitemapUrls.length - filteredUrls.length,
+      });
+    }
+
     this.logger.info("Processing sitemap URLs", {
       event: "crawler.sitemap.processing",
-      urlCount: sitemapUrls.length,
+      urlCount: filteredUrls.length,
       pagesBefore: this.results.length,
     });
 
-    // Process URLs from sitemap in batches
-    const batches = this.chunkArray(sitemapUrls, this.config.concurrency);
-
-    for (const batch of batches) {
+    // Process URLs from sitemap sequentially (fetch at depth 0)
+    let fetchedCount = 0;
+    for (const { url } of filteredUrls) {
       if (this.results.length >= this.config.maxPages) break;
-
-      await Promise.all(
-        batch.map(async ({ url }) => {
-          if (this.results.length >= this.config.maxPages) return;
-          await this.fetchAndParse(url, 0);
-        })
-      );
+      await this.fetchAndParse(url, 0);
+      fetchedCount++;
     }
 
     this.logger.info("Sitemap processing complete", {
       event: "crawler.sitemap.complete",
       pagesAfter: this.results.length,
+      urlsProcessed: fetchedCount,
+      providedEnoughUrls,
     });
 
-    return true;
+    return { usedSitemap: true, providedEnoughUrls };
   }
 
   /**
@@ -232,10 +327,17 @@ export class Crawler {
     const startUrl = normalizeUrl(this.config.url);
     this.queue.push({ url: startUrl, depth: 0 });
 
+    let batchCount = 0;
+    let totalBatchTime = 0;
+    let totalHttpTime = 0;
+
     while (
       this.queue.length > 0 &&
       this.results.length < this.config.maxPages
     ) {
+      batchCount++;
+      const batchStart = Date.now();
+
       // Sort queue by depth (shallow pages first) for better quality
       this.queue.sort((a, b) => a.depth - b.depth);
 
@@ -244,13 +346,53 @@ export class Crawler {
         .splice(0, this.config.concurrency)
         .filter((item) => item.depth <= this.config.maxDepth);
 
-      await Promise.all(
+      this.logger.debug(`Processing batch ${batchCount}`, {
+        event: "crawler.bfs.batch.start",
+        batchSize: batch.length,
+        queueRemaining: this.queue.length,
+        pagesFound: this.results.length,
+      });
+
+      const batchResults = await Promise.all(
         batch.map(async ({ url, depth }) => {
-          if (this.results.length >= this.config.maxPages) return;
-          await this.fetchAndParse(url, depth);
+          if (this.results.length >= this.config.maxPages) return null;
+
+          const requestStart = Date.now();
+          const result = await this.fetchAndParse(url, depth);
+          const requestDuration = Date.now() - requestStart;
+
+          return { result, requestDuration };
         })
       );
+
+      // Aggregate timing stats from batch
+      const batchHttpTime = batchResults
+        .filter((r) => r !== null)
+        .reduce((sum, r) => sum + (r?.requestDuration || 0), 0);
+      totalHttpTime += batchHttpTime;
+
+      const batchDuration = Date.now() - batchStart;
+      totalBatchTime += batchDuration;
+
+      this.logger.debug(`Batch ${batchCount} completed`, {
+        event: "crawler.bfs.batch.complete",
+        batchDuration,
+        batchSize: batch.length,
+        avgRequestTime: Math.round(batchHttpTime / batch.length),
+        pagesFound: this.results.length,
+      });
     }
+
+    // Log final BFS statistics
+    this.logger.info("BFS crawl statistics", {
+      event: "crawler.bfs.stats",
+      totalBatches: batchCount,
+      totalBatchTime,
+      avgBatchTime: Math.round(totalBatchTime / batchCount),
+      totalHttpTime,
+      avgHttpTime: Math.round(totalHttpTime / this.results.length),
+      concurrency: this.config.concurrency,
+    });
   }
 
   /**
@@ -347,11 +489,13 @@ export class Crawler {
         headers["Accept-Language"] = "en-US,en;q=0.9";
       }
 
+      const httpStart = Date.now();
       const response = await httpClient.get(url, {
         timeout: this.config.timeout,
         responseType: "text",
         headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
+      const httpDuration = Date.now() - httpStart;
 
       // Enhanced error handling for bot protection and rate limiting
       if (response.status === 403) {
@@ -402,12 +546,14 @@ export class Crawler {
       if (!this.htmlParser.isIndexable(html)) return null;
 
       // Extract metadata (async due to external link filtering)
+      const parseStart = Date.now();
       const metadata = await this.htmlParser.extractMetadata(
         html,
         url,
         this.config.url,
         depth
       );
+      const parseDuration = Date.now() - parseStart;
 
       // Duplicate content detection: hash page content (title + description + body text)
       // This catches different URLs serving identical content (e.g., /page vs /page?ref=twitter)
@@ -467,6 +613,8 @@ export class Crawler {
         metadata.sitemapPriority = sitemapInfo.priority;
       }
 
+      const totalFetchTime = httpDuration + parseDuration;
+
       this.logger.debug("Page fetched successfully", {
         event: "crawler.fetch.success",
         url,
@@ -474,6 +622,13 @@ export class Crawler {
         totalPages: this.results.length + 1,
         title: metadata.title,
         sitemapPriority: metadata.sitemapPriority,
+        timing: {
+          http: httpDuration,
+          parse: parseDuration,
+          total: totalFetchTime,
+          httpPercent: ((httpDuration / totalFetchTime) * 100).toFixed(1),
+          parsePercent: ((parseDuration / totalFetchTime) * 100).toFixed(1),
+        },
       });
       this.results.push(metadata);
 
@@ -581,17 +736,6 @@ export class Crawler {
 
     // Default: skip non-English
     return true;
-  }
-
-  /**
-   * Chunk array into batches
-   */
-  private chunkArray<T>(array: T[], size: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
-    }
-    return chunks;
   }
 
   /**

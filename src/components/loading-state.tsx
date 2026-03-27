@@ -1,5 +1,8 @@
 "use client";
 
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
 type JobStatus = "pending" | "processing" | "completed" | "failed";
 
 interface LoadingStateProps {
@@ -27,27 +30,45 @@ export function LoadingState({ status }: LoadingStateProps) {
     }
   };
 
+  const getStatusBadgeVariant = () => {
+    switch (status) {
+      case "pending":
+        return "warning" as const;
+      case "processing":
+        return "info" as const;
+      case "completed":
+        return "success" as const;
+      case "failed":
+        return "destructive" as const;
+      default:
+        return "secondary" as const;
+    }
+  };
+
   const { title, description } = getStatusMessage();
 
   return (
-    <div className="w-full max-w-3xl space-y-4 rounded-lg border border-gray-200 bg-white p-8">
-      <div className="flex items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
-      </div>
-      <div className="space-y-2 text-center">
-        <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-600">{description}</p>
-        {status && (
-          <p className="text-xs text-gray-500 mt-2">
-            Status: <span className="font-mono">{status}</span>
-          </p>
-        )}
-      </div>
-      <div className="space-y-2">
-        <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-          <div className="h-full animate-pulse rounded-full bg-blue-600 w-3/4"></div>
+    <Card className="w-full max-w-3xl">
+      <CardContent className="space-y-6 pt-8">
+        <div className="flex items-center justify-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-muted border-t-primary"></div>
         </div>
-      </div>
-    </div>
+        <div className="space-y-2 text-center">
+          <h3 className="text-lg font-medium">{title}</h3>
+          <p className="text-sm text-muted-foreground">{description}</p>
+          {status && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <span className="text-xs text-muted-foreground">Status:</span>
+              <Badge variant={getStatusBadgeVariant()}>{status}</Badge>
+            </div>
+          )}
+        </div>
+        <div className="space-y-2">
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-full animate-pulse rounded-full bg-primary w-3/4"></div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

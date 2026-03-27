@@ -1,26 +1,242 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* Border radius */
+  --radius: 0.5rem;
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Shadcn UI color tokens */
+  --color-background: hsl(var(--background) / <alpha-value>);
+  --color-foreground: hsl(var(--foreground) / <alpha-value>);
+  --color-card: hsl(var(--card) / <alpha-value>);
+  --color-card-foreground: hsl(var(--card-foreground) / <alpha-value>);
+  --color-popover: hsl(var(--popover) / <alpha-value>);
+  --color-popover-foreground: hsl(var(--popover-foreground) / <alpha-value>);
+  --color-primary: hsl(var(--primary) / <alpha-value>);
+  --color-primary-foreground: hsl(var(--primary-foreground) / <alpha-value>);
+  --color-secondary: hsl(var(--secondary) / <alpha-value>);
+  --color-secondary-foreground: hsl(
+    var(--secondary-foreground) / <alpha-value>
+  );
+  --color-muted: hsl(var(--muted) / <alpha-value>);
+  --color-muted-foreground: hsl(var(--muted-foreground) / <alpha-value>);
+  --color-accent: hsl(var(--accent) / <alpha-value>);
+  --color-accent-foreground: hsl(var(--accent-foreground) / <alpha-value>);
+  --color-destructive: hsl(var(--destructive) / <alpha-value>);
+  --color-destructive-foreground: hsl(
+    var(--destructive-foreground) / <alpha-value>
+  );
+  --color-border: hsl(var(--border) / <alpha-value>);
+  --color-input: hsl(var(--input) / <alpha-value>);
+  --color-ring: hsl(var(--ring) / <alpha-value>);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 237 81% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 237 81% 61%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* DevRev design system colors */
+    --neutral-h: 228;
+    --neutral-s: 10%;
+
+    /* Neutral scale */
+    --neutral-100: 228 10% 10%;
+    --neutral-120: 228 10% 12%;
+    --neutral-140: 228 10% 14%;
+    --neutral-160: 228 10% 16%;
+    --neutral-180: 228 10% 18%;
+    --neutral-200: 228 10% 20%;
+    --neutral-220: 228 10% 22%;
+    --neutral-240: 228 10% 24%;
+    --neutral-900: 228 10% 90%;
+    --neutral-960: 228 10% 96%;
+
+    --background: 228 10% 14%;
+    --foreground: 228 10% 96%;
+    --card: 228 10% 16%;
+    --card-foreground: 228 10% 96%;
+    --popover: 228 10% 18%;
+    --popover-foreground: 228 10% 96%;
+    --primary: 237 81% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 228 10% 22%;
+    --secondary-foreground: 228 10% 96%;
+    --muted: 228 10% 18%;
+    --muted-foreground: 228 10% 90%;
+    --accent: 228 10% 18%;
+    --accent-foreground: 228 10% 96%;
+    --destructive: 346 98% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 228 10% 23%;
+    --input: 228 10% 23%;
+    --ring: 237 81% 61%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "Roboto",
+      "Oxygen", "Ubuntu", "Cantarell", "Open Sans", "Helvetica Neue", sans-serif;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: rgba(240, 240, 240, 0.6) !important;
+    opacity: 1 !important;
+  }
+
+  /* Force white text in dark mode for form elements */
+  .dark input[type="text"],
+  .dark input[type="number"],
+  .dark textarea,
+  .dark label,
+  .dark select,
+  .dark [role="combobox"],
+  .dark [role="option"] {
+    color: rgb(245, 245, 245) !important;
+  }
+
+  /* Force white text for helper text */
+  .dark .text-muted-foreground,
+  .dark .text-foreground {
+    color: rgb(245, 245, 245) !important;
+  }
+
+  /* Force dropdown backgrounds in dark mode */
+  .dark [role="listbox"],
+  .dark [data-radix-select-content] {
+    background-color: hsl(228 10% 18%) !important;
+    color: hsl(228 10% 96%) !important;
+  }
+
+  /* Force dropdown items in dark mode */
+  .dark [role="option"] {
+    background-color: transparent !important;
+    cursor: pointer !important;
+  }
+
+  .dark [role="option"]:hover,
+  .dark [role="option"][data-highlighted] {
+    background-color: hsl(228 10% 22%) !important;
+    cursor: pointer !important;
+  }
+
+  /* Force popover backgrounds in dark mode */
+  .dark [data-radix-popover-content] {
+    background-color: hsl(228 10% 18%) !important;
+    border-color: hsl(228 10% 40%) !important;
+  }
+
+  /* Force tooltip backgrounds - multiple selectors for specificity */
+  .dark [data-radix-tooltip-content],
+  [data-radix-tooltip-content],
+  div[data-radix-tooltip-content],
+  [role="tooltip"] {
+    background-color: hsl(228 10% 18%) !important;
+    border-color: hsl(228 10% 40%) !important;
+    color: hsl(228 10% 96%) !important;
+  }
+
+  /* Force tooltip backgrounds with class selectors */
+  .bg-popover {
+    background-color: hsl(228 10% 18%) !important;
+  }
+
+  .text-popover-foreground {
+    color: hsl(228 10% 96%) !important;
+  }
+
+  /* Remove number input spinners */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  /* Make all borders more visible in dark mode */
+  .dark input[type="text"],
+  .dark input[type="number"],
+  .dark textarea,
+  .dark button[role="combobox"],
+  .dark .border-border,
+  .dark .border-input,
+  .dark [role="none"] {
+    border-color: hsl(228 10% 40%) !important;
+  }
+
+  /* Hover effects for form fields - light grey background */
+  .dark input[type="text"]:hover:not(:disabled),
+  .dark input[type="number"]:hover:not(:disabled),
+  .dark textarea:hover:not(:disabled),
+  .dark button[role="combobox"]:hover:not(:disabled) {
+    background-color: hsl(228 10% 20%) !important;
+    transition: background-color 0.15s ease;
+  }
+
+  /* Blue outline for website URL input - matching Generate button */
+  #url {
+    border-color: rgb(37, 99, 235) !important;
+  }
+
+  #url:focus {
+    border-color: rgb(37, 99, 235) !important;
+    outline-color: rgb(37, 99, 235) !important;
+    --tw-ring-color: rgba(37, 99, 235, 0.2) !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Hide Next.js dev indicators */
+nextjs-portal {
+  display: none !important;
+}
+
+div[data-nextjs-app-router-indicator] {
+  display: none !important;
+}
+
+div[data-nextjs-isr-indicator] {
+  display: none !important;
+}
+
+#__next-build-watcher {
+  display: none !important;
 }

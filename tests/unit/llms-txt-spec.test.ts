@@ -191,4 +191,34 @@ Content with https://example.com/4 plain URL
     expect(result.stats.linkCount).toBe(3);
     expect(result.stats.urlCount).toBeGreaterThanOrEqual(4);
   });
+
+  test("should warn about content that is too long", () => {
+    // Create content with more than maxLines (10000)
+    const sections = Array.from({ length: 2500 }, (_, i) => {
+      return `## Section ${i + 1}\n- [Link ${i + 1}](https://example.com/${i + 1})\n- [Link ${i + 1}b](https://example.com/${i + 1}b)\n`;
+    }).join("\n");
+    const content = `# Title\n\n${sections}`;
+
+    const result = validateLlmsTxtFormat(content);
+
+    expect(result.warnings.some((w) => w.includes("very long"))).toBe(true);
+  });
+
+  test("should warn about empty sections", () => {
+    const content = `# Title
+
+## Section 1
+- [Link 1](https://example.com/1)
+
+## Empty Section
+## Another Section
+- [Link 2](https://example.com/2)
+`;
+
+    const result = validateLlmsTxtFormat(content);
+
+    expect(result.warnings.some((w) => w.includes("empty sections"))).toBe(
+      true
+    );
+  });
 });

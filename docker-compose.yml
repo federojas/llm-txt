@@ -32,6 +32,7 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-llms_txt_dev}
       GROQ_API_KEY: ${GROQ_API_KEY}
+      TEST_GROQ_API_KEY: ${TEST_GROQ_API_KEY:-} # Optional: for running tests in container
       # Inngest Dev Server configuration
       INNGEST_DEV: "true"
       INNGEST_BASE_URL: "http://inngest:8288"

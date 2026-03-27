@@ -33,7 +33,8 @@ export class PatternTitleCleaner implements ITitleCleaningService {
     let cleaned = title;
 
     // Remove duplicate segments (e.g., "About - FastHTML - FastHTML" → "About - FastHTML")
-    const parts = cleaned.split(/\s*[-|—–]\s*/);
+    // Only split on separators with surrounding whitespace (to preserve hyphenated words)
+    const parts = cleaned.split(/\s+[-|—–]\s+/);
     const uniqueParts: string[] = [];
     const seen = new Set<string>();
 
@@ -45,16 +46,18 @@ export class PatternTitleCleaner implements ITitleCleaningService {
       }
     }
 
-    // If we removed duplicates, reassemble
+    // If we removed duplicates, reassemble and return
     if (uniqueParts.length < parts.length) {
       cleaned = uniqueParts.join(" - ");
+      return cleaned.trim();
     }
 
+    // No duplicates found - apply site name removal heuristics
     // If only one part remains, use it directly (no separator)
     if (uniqueParts.length === 1) {
       cleaned = uniqueParts[0];
     }
-    // If two parts and second is very short (likely site acronym), keep both
+    // If two parts and second is very short (likely site acronym), remove it
     else if (uniqueParts.length === 2 && uniqueParts[1].length <= 10) {
       cleaned = uniqueParts[0]; // Remove site name suffix
     }

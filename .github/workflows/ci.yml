@@ -5,6 +5,10 @@ on:
     branches: [main]
   # Removed push to main - Husky pre-commit already validates code
   # This prevents redundant CI runs and speeds up deployments
+  #
+  # Note: Uses TEST_GROQ_API_KEY (optional) for API calls in tests
+  # Falls back to GROQ_API_KEY if TEST_GROQ_API_KEY is not set
+  # This allows separate tracking of test vs production API usage
 
 jobs:
   validate:
@@ -88,10 +92,11 @@ jobs:
           exit 1
 
       - name: Run E2E smoke tests
-        run: npx playwright test --grep-invert "Job Completion"
+        run: npx playwright test --grep-invert "Job Completion|Full Suite"
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/llms_txt_test
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # Prefer TEST_GROQ_API_KEY, fallback to GROQ_API_KEY if not set
+          GROQ_API_KEY: ${{ secrets.TEST_GROQ_API_KEY != '' && secrets.TEST_GROQ_API_KEY || secrets.GROQ_API_KEY }}
           INNGEST_DEV: "true"
           INNGEST_BASE_URL: http://localhost:8288
           NODE_TLS_REJECT_UNAUTHORIZED: "0"

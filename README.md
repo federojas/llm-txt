@@ -120,9 +120,12 @@ Without Redis, rate limiting is disabled (development only).
 
 Configure these secrets in **Settings → Secrets and variables → Actions**:
 
-- `GROQ_API_KEY` - Get from https://console.groq.com/keys
+- `GROQ_API_KEY` - Get from https://console.groq.com/keys (used by tests if TEST_GROQ_API_KEY not set)
+- `TEST_GROQ_API_KEY` - _(Optional)_ Separate API key for tests - allows tracking test usage separately from production
 - `INNGEST_EVENT_KEY` - Get from https://www.inngest.com/ dashboard (required for E2E tests)
 - `INNGEST_SIGNING_KEY` - Get from https://www.inngest.com/ dashboard (required for E2E tests)
+
+**Best Practice:** Use separate Groq API keys for production (`GROQ_API_KEY`) and testing (`TEST_GROQ_API_KEY`) to track API usage separately and isolate costs. If `TEST_GROQ_API_KEY` is not set, tests will fall back to `GROQ_API_KEY`.
 
 ## 🤖 AI-Powered Descriptions
 
@@ -145,6 +148,14 @@ The generator uses [Groq](https://groq.com) with Llama 3.3 70B to create high-qu
 
 ## 🧪 Testing & Development
 
+**Test API Key Configuration:**
+
+Tests can use a separate API key from production:
+
+- Set `TEST_GROQ_API_KEY` in `.env` for separate test API tracking
+- If not set, tests fall back to `GROQ_API_KEY`
+- Both keys work the same way - just helps track usage separately
+
 ```bash
 # Run all tests
 npm test
@@ -155,7 +166,7 @@ npm run test:unit
 # Run integration tests (fast, ~10s)
 npm run test:integration
 
-# Run AI integration tests (slow, 5-10 minutes, not in CI)
+# Run AI integration tests (slow, 5-10 minutes, runs in full CI suite)
 npm run test:integration:ai
 
 # Run E2E tests

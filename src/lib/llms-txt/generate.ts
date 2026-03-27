@@ -42,7 +42,15 @@ export class GenerateLlmsTxt {
       const config = this.buildConfig(request);
 
       // Execute crawl
+      const crawlStart = Date.now();
       const pages = await this.crawlWebsite(config);
+      const crawlDuration = Date.now() - crawlStart;
+
+      logger.info("Crawling completed", {
+        event: "generate.crawl.complete",
+        duration: crawlDuration,
+        pagesFound: pages.length,
+      });
 
       // Validate results
       if (pages.length === 0) {
@@ -60,11 +68,19 @@ export class GenerateLlmsTxt {
       const metadataAccumulator = new MetadataAccumulator();
 
       // Generate llms.txt content (passes request for user overrides)
+      const generationStart = Date.now();
       const { content, validation } = await this.generateContent(
         pages,
         request,
         metadataAccumulator
       );
+      const generationDuration = Date.now() - generationStart;
+
+      logger.info("Content generation completed", {
+        event: "generate.generation.complete",
+        duration: generationDuration,
+        apiCallsCount: metadataAccumulator.getAggregated().totalApiCalls,
+      });
 
       const duration = Date.now() - startTime;
 
@@ -76,6 +92,12 @@ export class GenerateLlmsTxt {
         url: request.url,
         pagesFound: pages.length,
         duration,
+        timingBreakdown: {
+          crawling: crawlDuration,
+          contentGeneration: generationDuration,
+          crawlingPercent: ((crawlDuration / duration) * 100).toFixed(1),
+          generationPercent: ((generationDuration / duration) * 100).toFixed(1),
+        },
         contentLength: content.length,
         apiCallsCount: aggregatedMetadata.totalApiCalls,
         tokensUsed: aggregatedMetadata.totalTokensUsed,
@@ -154,7 +176,7 @@ export class GenerateLlmsTxt {
       maxPages: effectiveMaxPages,
       maxDepth: request.maxDepth ?? DEFAULT_MAX_DEPTH,
       timeout: 10000, // Hardcoded: 10s timeout (not user-configurable)
-      concurrency: 5, // Hardcoded: 5 concurrent requests (not user-configurable)
+      concurrency: 10, // Standard polite crawling (reduced to 3 if site has crawl-delay)
       includePatterns: request.includePatterns,
       excludePatterns: request.excludePatterns,
       languageStrategy: request.languageStrategy,

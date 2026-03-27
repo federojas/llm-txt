@@ -5,6 +5,8 @@ import { UrlInput } from "@/components/url-input";
 import { LoadingState } from "@/components/loading-state";
 import { ResultPreview } from "@/components/result-preview";
 import { LanguageStrategy } from "@/lib/types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { XCircle } from "lucide-react";
 
 type JobStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -52,7 +54,16 @@ export default function Home() {
         );
       }
 
-      const status = data.data.status as JobStatus;
+      console.log("Job status response:", data);
+
+      // Validate response structure
+      if (!data || !data.data) {
+        console.error("Invalid API response structure:", data);
+        throw new Error("Invalid API response structure");
+      }
+
+      const jobData = data.data;
+      const status = jobData.status as JobStatus;
       setJobStatus(status);
 
       if (status === "completed") {
@@ -63,9 +74,21 @@ export default function Home() {
         }
         pollAttemptsRef.current = 0;
         setIsLoading(false);
+
+        // Validate result data
+        if (!jobData.content) {
+          console.error("Job completed but no content:", jobData);
+          throw new Error(
+            "Job completed but no content was returned. Please try again."
+          );
+        }
+
         setResult({
-          content: data.data.result.content,
-          stats: data.data.result.stats,
+          content: jobData.content,
+          stats: {
+            pagesFound: jobData.pagesFound ?? 0,
+            url: jobData.url ?? "",
+          },
         });
       } else if (status === "failed") {
         // Job failed
@@ -171,19 +194,19 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100">
-      <main className="container mx-auto px-4 py-12">
-        <div className="mb-12 text-center">
-          <h1 className="mb-4 text-5xl font-bold text-gray-900">
+    <div className="min-h-screen bg-background">
+      <main className="container mx-auto px-4 py-16">
+        <div className="mb-16 text-center space-y-4">
+          <h1 className="text-6xl font-bold tracking-tight">
             llms.txt Generator
           </h1>
-          <p className="mx-auto max-w-2xl text-lg text-gray-600">
+          <p className="mx-auto max-w-2xl text-xl text-muted-foreground leading-relaxed">
             Automatically generate an{" "}
             <a
               href="https://llmstxt.org"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline underline-offset-4 transition-colors"
             >
               llms.txt
             </a>{" "}
@@ -192,31 +215,13 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="flex flex-col items-center gap-8">
+        <div className="flex flex-col items-center gap-6">
           {error && (
-            <div className="w-full max-w-3xl rounded-lg border border-red-200 bg-red-50 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600">
-                  <svg
-                    className="h-5 w-5 text-white"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path d="M6 18L18 6M6 6l12 12"></path>
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-medium text-red-900">
-                    Failed to generate llms.txt
-                  </p>
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
-              </div>
-            </div>
+            <Alert variant="destructive" className="w-full max-w-3xl">
+              <XCircle className="h-5 w-5" />
+              <AlertTitle>Failed to generate llms.txt</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           {!result && !isLoading && (
@@ -233,20 +238,6 @@ export default function Home() {
             />
           )}
         </div>
-
-        <footer className="mt-16 border-t border-gray-200 pt-8 text-center text-sm text-gray-600">
-          <p>
-            Built with Next.js • Learn more about{" "}
-            <a
-              href="https://llmstxt.org"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              llms.txt specification
-            </a>
-          </p>
-        </footer>
       </main>
     </div>
   );
