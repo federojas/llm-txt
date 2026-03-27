@@ -86,7 +86,7 @@ Output only the description, no quotes, no preamble.`,
               },
               {
                 role: "user",
-                content: `Analyze this website homepage and create a SPECIFIC summary explaining what this site is.
+                content: `Analyze this website homepage and create content for an llms.txt file.
 
 Site Name: ${homepage.siteName || homepage.title}
 URL: ${homepage.url}
@@ -94,45 +94,26 @@ Description: ${homepage.ogDescription || homepage.description || "N/A"}
 H1: ${homepage.h1 || "N/A"}
 Body Text: ${homepage.bodyText?.slice(0, 1500) || "N/A"}
 
-CRITICAL: Be SPECIFIC about what this site/service is and does. Extract concrete details from body text:
-- Core function/purpose (what does it do?)
-- Platform type or category
-- Key features, services, or offerings mentioned
-- For technical sites: specific technologies/frameworks
-- For services: main capabilities or products
-
 Create TWO parts separated by "|||":
 
-FIRST PART (1-2 sentences, 30-50 words):
-Explain SPECIFICALLY what this site is and does. Extract concrete details from body text.
+PART 1 - Brief Summary (1-3 sentences):
+Explain what this product/service is in technical terms. Be specific about core function, technologies, or key capabilities.
 
-Good examples by domain:
-- Developer tool: "A Python library combining Starlette, Uvicorn, and HTMX for server-rendered hypermedia applications"
-- Video platform: "A video-sharing platform where users upload, view, rate, share, and comment on videos globally"
-- Banking: "An online banking platform offering checking accounts, savings, loans, and mobile payment services"
-- E-commerce: "An online marketplace for buying and selling handmade crafts, vintage items, and craft supplies"
-- News: "A news website covering technology, business, and innovation with analysis and opinion pieces"
+Examples:
+- "FastHTML is a Python library combining Starlette, Uvicorn, and HTMX for server-rendered hypermedia applications"
+- "YouTube is a video-sharing platform where users upload, view, rate, share, and comment on videos globally"
+- "Stripe provides payment processing APIs for internet businesses with SDKs for multiple languages"
 
-Bad examples: "A great platform", "Modern web applications", "The best service"
+PART 2 - Additional Context (optional, 2-4 paragraphs):
+If the body text contains substantial information, provide additional context that helps LLMs understand and assist users:
+- What users can do with this site/product
+- Key features or capabilities mentioned in the body text
+- Important technical details or use cases
+- How LLMs can help users interact with this site
 
-SECOND PART (choose format based on site type):
+Keep it concise and informative. If body text lacks substance, write: NONE
 
-FOR TOOLS/APIS/LIBRARIES (technical products you USE):
-Write "Things to remember when using ${homepage.siteName || homepage.title}:" followed by 3-5 bullet points from body text.
-
-FOR PLATFORMS/SERVICES (websites users VISIT):
-Write 2-3 paragraphs explaining:
-1. What the platform does in detail (expand on the summary)
-2. Key features or use cases
-3. Context for LLMs: "For LLMs assisting users, [site name] represents..." - explain how LLMs should help users interact with this platform
-
-FOR CONTENT SITES (news, blogs, info):
-Write 1-2 paragraphs about the content focus, topics covered, and target audience.
-
-IF no useful information in body text:
-Write: NONE
-
-Your output:`,
+Output the two parts separated by "|||" with no format labels or instructions:`,
               },
             ],
           })
