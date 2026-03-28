@@ -6,7 +6,10 @@
 import * as cheerio from "cheerio";
 import { httpClient } from "./client";
 import { normalizeUrl } from "@/lib/url/normalization";
-import { isLanguageVariant } from "../crawling/boundaries";
+import {
+  isLanguageVariant,
+  extractBrandIdentifier,
+} from "../crawling/boundaries";
 
 export interface SitemapUrl {
   url: string;
@@ -102,11 +105,13 @@ function extractSitemapFromRobotsTxt(robotsTxtContent: string): string | null {
  *
  * @param sitemapUrl - URL to sitemap.xml
  * @param maxUrls - Maximum URLs to extract
+ * @param baseUrl - Base URL for brand filtering (optional, for sitemap indexes)
  * @returns Array of sitemap URLs
  */
 export async function fetchAndParseSitemap(
   sitemapUrl: string,
-  maxUrls: number = 100
+  maxUrls: number = 100,
+  baseUrl?: string
 ): Promise<SitemapUrl[]> {
   try {
     const response = await httpClient.get(sitemapUrl, {
@@ -125,18 +130,65 @@ export async function fetchAndParseSitemap(
     if (isSitemapIndex(xmlContent)) {
       // Fetch ALL child sitemaps for comprehensive coverage
       const childUrls = parseSitemapIndex(xmlContent);
-      const allUrls: SitemapUrl[] = [];
 
+      // Filter child sitemaps by brand if baseUrl provided
+      let filteredChildUrls = childUrls;
+      const baseBrand = baseUrl
+        ? extractBrandIdentifier(new URL(baseUrl).hostname)
+        : null;
+
+      if (baseBrand) {
+        const childUrlsWithBrand = childUrls.map((url) => ({
+          url,
+          brand: extractBrandIdentifier(new URL(url).hostname),
+          hostname: new URL(url).hostname,
+        }));
+
+        filteredChildUrls = childUrlsWithBrand
+          .filter(({ brand }) => brand === baseBrand)
+          .map(({ url }) => url);
+
+        // Log brand filtering stats
+        const uniqueHostnames = new Set(
+          childUrlsWithBrand.map((c) => c.hostname)
+        );
+        const matchedHostnames = new Set(
+          childUrlsWithBrand
+            .filter((c) => c.brand === baseBrand)
+            .map((c) => c.hostname)
+        );
+
+        console.log(
+          `[Sitemap Index] Brand filtering: ${filteredChildUrls.length}/${childUrls.length} sitemaps match brand "${baseBrand}"`
+        );
+        console.log(
+          `[Sitemap Index] Matched subdomains: ${Array.from(matchedHostnames).join(", ")}`
+        );
+
+        if (filteredChildUrls.length < childUrls.length) {
+          const excluded = Array.from(uniqueHostnames).filter(
+            (h) => !matchedHostnames.has(h)
+          );
+          console.log(
+            `[Sitemap Index] Excluded subdomains: ${excluded.join(", ")}`
+          );
+        }
+      }
+
+      const allUrls: SitemapUrl[] = [];
       console.log(
-        `[Sitemap Index] Found ${childUrls.length} child sitemaps, fetching all for comprehensive coverage`
+        `[Sitemap Index] Processing ${filteredChildUrls.length} brand-matched child sitemaps`
       );
 
-      // Process ALL child sitemaps (don't stop early)
-      for (let i = 0; i < childUrls.length; i++) {
-        const childSitemapUrl = childUrls[i];
+      // Process ALL brand-matched child sitemaps
+      for (let i = 0; i < filteredChildUrls.length; i++) {
+        const childSitemapUrl = filteredChildUrls[i];
+        const childHostname = new URL(childSitemapUrl).hostname;
+
         const childResults = await fetchAndParseSitemap(
           childSitemapUrl,
-          10000 // Large limit per child sitemap
+          10000, // Large limit per child sitemap
+          baseUrl // Pass baseUrl for recursive brand filtering
         );
 
         // Filter language variants during collection
@@ -147,13 +199,13 @@ export async function fetchAndParseSitemap(
         if (nonVariants.length > 0) {
           allUrls.push(...nonVariants);
           console.log(
-            `[Sitemap Index] Processed ${i + 1}/${childUrls.length}: ${childResults.length} URLs → ${nonVariants.length} non-variants (total: ${allUrls.length})`
+            `[Sitemap Index] ${childHostname}: ${childResults.length} URLs → ${nonVariants.length} non-variants (${i + 1}/${filteredChildUrls.length}, total: ${allUrls.length})`
           );
         }
       }
 
       console.log(
-        `[Sitemap Index] Collected ${allUrls.length} total non-variant URLs from ${childUrls.length} sitemaps`
+        `[Sitemap Index] Collected ${allUrls.length} total non-variant URLs from ${filteredChildUrls.length} brand-matched sitemaps`
       );
 
       // Sort by priority (high to low)

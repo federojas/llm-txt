@@ -1,7 +1,11 @@
 import { CrawlConfig, PageMetadata, CrawlProgress } from "@/lib/types";
 import { IHtmlParser, HtmlParser } from "./parser";
 import { IAdBlocker } from "./ad-blocker";
-import { getUrlDepth, isLanguageVariant } from "./boundaries";
+import {
+  getUrlDepth,
+  isLanguageVariant,
+  extractBrandIdentifier,
+} from "./boundaries";
 import { normalizeUrl } from "@/lib/url/normalization";
 import {
   httpClient,
@@ -297,7 +301,12 @@ export class Crawler {
 
     // Fetch ALL sitemap URLs (no limit - returns all non-variant URLs)
     // Language filtering happens during sitemap collection
-    const sitemapUrls = await fetchAndParseSitemap(sitemapUrl, 100000);
+    // Pass baseUrl for brand-aware filtering in sitemap indexes
+    const sitemapUrls = await fetchAndParseSitemap(
+      sitemapUrl,
+      100000,
+      this.config.url
+    );
     if (sitemapUrls.length === 0)
       return {
         usedSitemap: false,
@@ -345,40 +354,56 @@ export class Crawler {
 
     const scores = await linkScorer.scoreLinks(pagesForScoring);
 
-    // Convert to sorted array - PRIORITIZE PRIMARY DOMAIN FIRST
-    // Sort by: 1) hostname match, 2) depth, 3) score
+    // Convert to sorted array - PRIORITIZE BY BRAND, THEN HOSTNAME, THEN DEPTH
+    // Sort by: 1) brand match, 2) hostname match, 3) depth, 4) score
     const baseHostname = new URL(this.config.url).hostname;
+    const baseBrand = extractBrandIdentifier(baseHostname);
     const scoredUrls = Array.from(scores.entries())
-      .map(([url, score]) => ({
-        url,
-        depth: pagesForScoring.find((p) => p.url === url)?.depth ?? 0,
-        priority: this.sitemapData.get(normalizeUrl(url))?.priority,
-        totalScore: score.totalScore,
-        signals: score.signals,
-        hostname: new URL(url).hostname,
-      }))
+      .map(([url, score]) => {
+        const hostname = new URL(url).hostname;
+        return {
+          url,
+          depth: pagesForScoring.find((p) => p.url === url)?.depth ?? 0,
+          priority: this.sitemapData.get(normalizeUrl(url))?.priority,
+          totalScore: score.totalScore,
+          signals: score.signals,
+          hostname,
+          brand: extractBrandIdentifier(hostname),
+        };
+      })
       .sort((a, b) => {
-        // Primary: exact hostname match (www.youtube.com beats artists.youtube)
-        const aMatchesBase = a.hostname === baseHostname;
-        const bMatchesBase = b.hostname === baseHostname;
-        if (aMatchesBase !== bMatchesBase) {
-          return aMatchesBase ? -1 : 1;
+        // Primary: same brand as base (youtube.com, artists.youtube, health.youtube all match)
+        const aMatchesBrand = a.brand === baseBrand && a.brand !== null;
+        const bMatchesBrand = b.brand === baseBrand && b.brand !== null;
+        if (aMatchesBrand !== bMatchesBrand) {
+          return aMatchesBrand ? -1 : 1;
         }
 
-        // Secondary: sort by depth (shallower first)
+        // Secondary: within same brand, prioritize exact hostname (www.youtube.com over artists.youtube)
+        const aMatchesHostname = a.hostname === baseHostname;
+        const bMatchesHostname = b.hostname === baseHostname;
+        if (aMatchesHostname !== bMatchesHostname) {
+          return aMatchesHostname ? -1 : 1;
+        }
+
+        // Tertiary: sort by depth (shallower first)
         if (a.depth !== b.depth) {
           return a.depth - b.depth;
         }
 
-        // Tertiary: sort by total score (higher first)
+        // Quaternary: sort by total score (higher first)
         return b.totalScore - a.totalScore;
       });
 
     this.logger.info("Sitemap URLs scored and sorted", {
       event: "crawler.sitemap.scoring",
       totalUrls: scoredUrls.length,
+      baseBrand,
+      baseHostname,
       topScores: scoredUrls.slice(0, 10).map((u) => ({
         url: u.url,
+        brand: u.brand,
+        hostname: u.hostname,
         depth: u.depth,
         priority: u.priority,
         totalScore: u.totalScore.toFixed(1),

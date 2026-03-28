@@ -20,7 +20,7 @@ import { parse } from "tldts";
  * - contributors.youtube.com → "youtube" (publicSuffix=com, use domainWithoutSuffix)
  * - docs.github.com → "github" (publicSuffix=com, use domainWithoutSuffix)
  */
-function extractBrandIdentifier(hostname: string): string | null {
+export function extractBrandIdentifier(hostname: string): string | null {
   const parsed = parse(hostname);
   if (!parsed.publicSuffix || !parsed.domainWithoutSuffix) return null;
 
