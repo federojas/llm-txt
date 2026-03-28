@@ -107,6 +107,15 @@ export async function isValuableExternalLink(
   isInMainContent?: boolean
 ): Promise<boolean> {
   try {
+    // Signal 0: Protocol validation - only allow HTTP/HTTPS
+    const urlObj = new URL(url);
+    if (urlObj.protocol !== "http:" && urlObj.protocol !== "https:") {
+      console.log(
+        `[External Links] Blocked by protocol: ${urlObj.protocol} (${url})`
+      );
+      return false;
+    }
+
     // Signal 1: Check domain blocklist (NEW - catches social media in main content)
     if (isExcludedDomain(url)) {
       console.log(`[External Links] Blocked by domain: ${url}`);
