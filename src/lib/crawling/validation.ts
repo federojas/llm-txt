@@ -18,10 +18,21 @@ export const CRAWL_LIMITS = {
 /**
  * Default values for crawl configuration
  * Includes both user-configurable and hardcoded parameters for documentation
+ *
+ * MAX_PAGES: 200 (changed from 50)
+ * MAX_DEPTH: 2 (changed from 3)
+ *
+ * Rationale: These defaults balance quality and coverage:
+ * - maxDepth=2 focuses on platform pages (jobs, about, docs, API)
+ * - maxPages=200 ensures comprehensive coverage within those shallow depths
+ * - Depth 3+ typically contains articles/blogs that dominate AI clustering
+ *   and push out more important platform pages
+ * - Since maxDepth=2 limits scope, 200 pages is still fast (~60-90s)
+ * - Users can override both values if needed
  */
 export const CRAWL_DEFAULTS = {
-  MAX_PAGES: 50,
-  MAX_DEPTH: 3,
+  MAX_PAGES: 200,
+  MAX_DEPTH: 2,
   TIMEOUT: 10000, // Hardcoded (not user-configurable)
   CONCURRENCY: 5, // Hardcoded (not user-configurable)
 } as const;

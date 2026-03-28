@@ -61,7 +61,7 @@ export class GroqSectionDiscovery implements ISectionDiscoveryService {
 Pages:
 ${pageList}
 
-Create 3-7 sections with clear, technical names (2-4 words each).
+Create 3-10 sections with clear, descriptive names (2-4 words each). Group semantically similar pages together. Each section can have as many pages as needed - don't artificially limit section sizes.
 
 Output as JSON only (no markdown, no explanation):
 {

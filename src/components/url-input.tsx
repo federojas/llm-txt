@@ -53,8 +53,8 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
     useState<GenerationMode>("metadata");
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
-  const [maxPages, setMaxPages] = useState<string>(""); // Empty = use mode-specific default (200 for metadata, 50 for AI)
-  const [maxDepth, setMaxDepth] = useState<string>(""); // Empty = use default (3)
+  const [maxPages, setMaxPages] = useState<string>(""); // Empty = use mode-specific default (metadata: 200, ai: 50)
+  const [maxDepth, setMaxDepth] = useState<string>(""); // Empty = use default (2)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +93,12 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
         generationMode: generationMode, // Always send mode (default is "ai")
         projectName: projectName.trim() || undefined,
         projectDescription: projectDescription.trim() || undefined,
-        maxPages: maxPages ? parseInt(maxPages, 10) : undefined,
+        // AI mode: default 50 (explicit), metadata mode: default 200 (backend default)
+        maxPages: maxPages
+          ? parseInt(maxPages, 10)
+          : generationMode === "ai"
+            ? 50
+            : undefined,
         maxDepth: maxDepth ? parseInt(maxDepth, 10) : undefined,
       };
 
@@ -268,7 +273,7 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-[180px]">
+                      <TooltipContent side="right" className="max-w-50">
                         <p className="text-xs">
                           Maximum pages to crawl (1-200). Default:{" "}
                           {generationMode === "ai" ? "50" : "200"}
@@ -312,7 +317,7 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                       </TooltipTrigger>
                       <TooltipContent side="right" className="max-w-[180px]">
                         <p className="text-xs">
-                          Maximum crawl depth (1-5). Default: 3
+                          Maximum crawl depth (1-5). Default: 2
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -324,7 +329,7 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                     onChange={(e) => setMaxDepth(e.target.value)}
                     min="1"
                     max="5"
-                    placeholder="3"
+                    placeholder="2"
                     disabled={isLoading}
                   />
                 </div>

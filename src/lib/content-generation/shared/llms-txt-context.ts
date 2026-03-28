@@ -198,18 +198,29 @@ Bad examples:
 /**
  * Get user prompt for description generation
  * Provides page metadata and formatting instructions
+ *
+ * Strategy: Prefer meta description when available, fallback to bodyText
+ * AI can generate better descriptions from body content than from missing metadata
  */
 export function getDescriptionUserPrompt(page: {
   title: string;
   url: string;
   description?: string;
   ogDescription?: string;
+  bodyText?: string;
 }): string {
+  const metaDesc = page.description || page.ogDescription;
+
+  // Use body text for context when meta description is missing
+  // AI will generate a unique description from the content
+  const contextText =
+    metaDesc || (page.bodyText ? page.bodyText.slice(0, 500) : undefined);
+
   return `Create a concise description for this page (max 20 words).
 
 Title: ${page.title}
 URL: ${page.url}
-Meta Description: ${page.description || page.ogDescription || "N/A"}
+${contextText ? `Content: ${contextText}` : "Meta Description: N/A"}
 
 Output only the description, no quotes, no preamble.`;
 }
