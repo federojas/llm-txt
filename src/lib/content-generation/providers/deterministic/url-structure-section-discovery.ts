@@ -105,7 +105,8 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
         continue;
       }
 
-      const name = this.deriveSectionName(prefix);
+      // Use page title from first page if available, otherwise derive from URL
+      const name = this.deriveSectionNameFromPages(sectionPages, prefix);
       sections.push({
         name,
         pageIndexes,
@@ -253,7 +254,77 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
   }
 
   /**
-   * Derive human-readable section name from URL prefix
+   * Derive section name from actual page titles (preferred) or URL prefix (fallback)
+   *
+   * Strategy:
+   * 1. If pages have consistent section keywords in titles, extract them
+   * 2. Look at the first page's title for section hints (e.g., "How YouTube Works: ...")
+   * 3. Fall back to URL-based naming if no clear pattern
+   *
+   * Examples:
+   * - Pages titled "How YouTube Works: ..." → "How YouTube Works"
+   * - Pages titled "YouTube for Artists - News: ..." → "News"
+   * - /howyoutubeworks/* with no clear title → "Howyoutubeworks"
+   */
+  private deriveSectionNameFromPages(
+    pages: PageMetadata[],
+    prefix: string
+  ): string {
+    if (pages.length === 0) {
+      return this.deriveSectionName(prefix);
+    }
+
+    // Strategy 1: Extract common prefix from page titles
+    const firstPage = pages[0];
+    const title = firstPage.title || "";
+
+    console.log(
+      `[Section Name] Deriving name for prefix "${prefix}", first page title: "${title}"`
+    );
+
+    // Look for section indicators in title (before colons, hyphens, or "- ")
+    // Examples:
+    // "How YouTube Works: Giving Everyone a Voice" → "How YouTube Works"
+    // "YouTube for Artists - News: Article Title" → "News"
+    const colonMatch = title.match(/^([^:]+):/);
+    if (colonMatch) {
+      const sectionName = colonMatch[1].trim();
+      // Clean up common patterns
+      const cleaned = sectionName
+        .replace(/^YouTube\s+(for\s+)?/i, "") // Remove "YouTube" or "YouTube for" prefix
+        .trim();
+
+      if (cleaned.length > 0) {
+        console.log(`[Section Name] ✓ Extracted from colon: "${cleaned}"`);
+        return cleaned;
+      }
+    }
+
+    // Look for patterns like "Page - Section" or "Page | Section"
+    const separatorMatch = title.match(/[-|—–]\s*([^-|—–]+?)$/);
+    if (separatorMatch) {
+      const sectionName = separatorMatch[1].trim();
+      // If it's a short, meaningful section name (not a site name), use it
+      if (
+        sectionName.length > 2 &&
+        sectionName.length < 30 &&
+        !/youtube|google/i.test(sectionName)
+      ) {
+        console.log(
+          `[Section Name] ✓ Extracted from separator: "${sectionName}"`
+        );
+        return sectionName;
+      }
+    }
+
+    // Fallback: derive from URL prefix
+    const fallback = this.deriveSectionName(prefix);
+    console.log(`[Section Name] ✗ Using URL fallback: "${fallback}"`);
+    return fallback;
+  }
+
+  /**
+   * Derive human-readable section name from URL prefix (fallback method)
    *
    * Examples:
    * - / → "Overview"
@@ -296,6 +367,22 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
    * Convert a single path segment to a human-readable title
    */
   private segmentToTitle(segment: string): string {
+    // Common concatenated words dictionary (for lowercase URLs without separators)
+    const knownConcatenations: Record<string, string> = {
+      myfamily: "Family",
+      howyoutubeworks: "How YouTube Works",
+      aboutus: "About Us",
+      contactus: "Contact Us",
+      signin: "Sign In",
+      signup: "Sign Up",
+      getstarted: "Get Started",
+    };
+
+    const lowerSegment = segment.toLowerCase();
+    if (knownConcatenations[lowerSegment]) {
+      return knownConcatenations[lowerSegment];
+    }
+
     // Uppercase known acronyms (language-agnostic, small list)
     const acronyms = [
       "api",
@@ -314,13 +401,22 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
       "ml",
     ];
 
-    if (acronyms.includes(segment.toLowerCase())) {
+    if (acronyms.includes(lowerSegment)) {
       return segment.toUpperCase();
     }
 
     // Convert kebab-case/snake_case to Title Case
+    // Also split camelCase and handle concatenated words
     return segment
       .split(/[-_]/)
+      .flatMap((word) => {
+        // Split camelCase: "howyoutubeworks" → ["how", "youtube", "works"]
+        // Insert space before capital letters
+        return word
+          .replace(/([a-z])([A-Z])/g, "$1 $2")
+          .split(/\s+/)
+          .filter((w) => w.length > 0);
+      })
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(" ");
   }

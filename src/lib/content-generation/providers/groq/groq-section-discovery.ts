@@ -32,6 +32,16 @@ export class GroqSectionDiscovery implements ISectionDiscoveryService {
       })
       .join("\n");
 
+    // Log what we're sending to AI
+    console.log(`\n[AI Section Discovery] Analyzing ${pages.length} pages:`);
+    pages.slice(0, 30).forEach((page, idx) => {
+      console.log(`  ${idx}. ${page.title}`);
+      console.log(`     ${page.url}`);
+    });
+    if (pages.length > 30) {
+      console.log(`  ... and ${pages.length - 30} more pages`);
+    }
+
     const { data, metadata } = await this.groqClient.executeWithFallback(
       async (model, client) => {
         return await client.chat.completions
@@ -93,6 +103,26 @@ CRITICAL: Output ONLY valid JSON. Every page index (0-${pages.length - 1}) must 
     if (metadataAccumulator) {
       metadataAccumulator.addApiCall("section-discovery", metadata);
     }
+
+    // Log what AI returned
+    console.log(`\n[AI Section Discovery] AI created ${data.length} sections:`);
+    data.forEach((section: SectionGroup) => {
+      console.log(
+        `  - "${section.name}" (${section.pageIndexes.length} pages): indexes ${section.pageIndexes.slice(0, 10).join(", ")}${section.pageIndexes.length > 10 ? "..." : ""}`
+      );
+      // Show which actual pages are in this section
+      section.pageIndexes.slice(0, 5).forEach((idx: number) => {
+        if (idx >= 0 && idx < pages.length) {
+          const page = pages[idx];
+          console.log(`      ${idx}. ${page.title}`);
+        }
+      });
+      if (section.pageIndexes.length > 5) {
+        console.log(
+          `      ... and ${section.pageIndexes.length - 5} more pages`
+        );
+      }
+    });
 
     return data;
   }

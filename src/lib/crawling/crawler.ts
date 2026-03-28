@@ -3,7 +3,11 @@ import { IHtmlParser, HtmlParser } from "./parser";
 import { IAdBlocker } from "./ad-blocker";
 import { getUrlDepth, isLanguageVariant } from "./boundaries";
 import { normalizeUrl } from "@/lib/url/normalization";
-import { httpClient } from "@/lib/http/client";
+import {
+  httpClient,
+  createHttpClient,
+  type IHttpClient,
+} from "@/lib/http/client";
 import { discoverSitemap, fetchAndParseSitemap } from "@/lib/http/sitemap";
 import type { SitemapUrl } from "@/lib/http/sitemap";
 import { fetchRobotsTxt, RobotsDirectives } from "@/lib/http/robots";
@@ -12,6 +16,7 @@ import { LanguageDetector } from "./language-detector";
 import { createHash } from "crypto";
 import picomatch from "picomatch";
 import { createLogger, type Logger } from "@/lib/logger";
+import { LinkScorer } from "./link-scoring";
 
 /**
  * Crawler Service (Application Layer)
@@ -38,6 +43,7 @@ export class Crawler {
   private lastRequestTime = 0; // Track last request for crawl delay
   private sitemapData = new Map<string, SitemapUrl>(); // URL -> sitemap metadata
   private logger: Logger; // Structured logger
+  private httpClient: IHttpClient; // HTTP client (may be customized for crawl-delay)
 
   // Pattern filtering (inspired by llmstxt tool)
   private isExcluded?: (path: string) => boolean; // Exclude pattern matcher
@@ -70,6 +76,9 @@ export class Crawler {
       maxPages: config.maxPages,
       maxDepth: config.maxDepth,
     });
+
+    // Initialize with default HTTP client (may be replaced after robots.txt check)
+    this.httpClient = httpClient;
 
     // Initialize pattern matchers (inspired by llmstxt tool)
     // Use picomatch for glob pattern matching: "**/blog/**", "**/docs/**"
@@ -110,19 +119,31 @@ export class Crawler {
             crawlDelaySeconds,
           });
 
+          // Create custom HTTP client with rate limit matching robots.txt
+          // crawl-delay: X seconds = 1/X requests per second
+          const requestsPerSecond = 1 / crawlDelaySeconds;
+          this.httpClient = createHttpClient({
+            enableLogging: process.env.NODE_ENV === "development",
+            maxRetries: 3,
+            rateLimit: {
+              maxRequestsPerSecond: requestsPerSecond,
+              burst: Math.max(1, Math.ceil(requestsPerSecond * 2)), // Allow small burst
+            },
+          });
+
           // Reduce concurrency for sites with explicit crawl-delay (they want slow crawling)
           // Balance between respecting delay and reasonable performance
           if (crawlDelaySeconds >= 1) {
             const originalConcurrency = this.config.concurrency;
             this.config.concurrency = Math.min(this.config.concurrency, 5);
             this.logger.info(
-              `Reduced concurrency due to crawl-delay directive`,
+              `Configured HTTP client rate limiting for crawl-delay`,
               {
-                event: "crawler.concurrency.reduced",
+                event: "crawler.rate_limit.configured",
                 crawlDelaySeconds,
+                requestsPerSecond,
                 originalConcurrency,
                 newConcurrency: this.config.concurrency,
-                effectiveRatePerSec: this.config.concurrency,
               }
             );
           }
@@ -141,7 +162,8 @@ export class Crawler {
 
       // Try sitemap first
       const sitemapStart = Date.now();
-      const { usedSitemap, providedEnoughUrls } = await this.crawlFromSitemap();
+      const { usedSitemap, providedEnoughUrls, isComprehensive } =
+        await this.crawlFromSitemap();
       const sitemapDuration = Date.now() - sitemapStart;
 
       if (usedSitemap) {
@@ -150,28 +172,33 @@ export class Crawler {
           duration: sitemapDuration,
           pagesFound: this.results.length,
           providedEnoughUrls,
+          isComprehensive,
         });
       }
 
+      // Skip BFS for comprehensive sitemaps (>100 URLs) - they provide good coverage
       // Only run BFS if:
       // 1. No sitemap found, OR
-      // 2. Sitemap didn't provide enough URLs (< maxPages), OR
+      // 2. Sitemap is not comprehensive (< 100 URLs), OR
       // 3. Sitemap provided URLs but many failed during fetch (results < maxPages)
       const shouldRunBFS =
         !usedSitemap ||
-        !providedEnoughUrls ||
-        this.results.length < this.config.maxPages;
+        (!isComprehensive &&
+          (!providedEnoughUrls || this.results.length < this.config.maxPages));
 
       if (shouldRunBFS) {
         const reason = !usedSitemap
           ? "no sitemap found"
-          : !providedEnoughUrls
-            ? "sitemap provided insufficient URLs"
-            : "many sitemap URLs failed to fetch";
+          : !isComprehensive
+            ? "sitemap not comprehensive (< 100 URLs)"
+            : !providedEnoughUrls
+              ? "sitemap provided insufficient URLs"
+              : "many sitemap URLs failed to fetch";
 
         this.logger.info(`Running BFS crawl: ${reason}`, {
           event: "crawler.bfs.trigger",
           usedSitemap,
+          isComprehensive,
           providedEnoughUrls,
           resultsSoFar: this.results.length,
           maxPages: this.config.maxPages,
@@ -188,9 +215,12 @@ export class Crawler {
         });
       } else {
         this.logger.info(
-          "Skipping BFS crawl: sitemap provided sufficient URLs",
+          isComprehensive
+            ? "Skipping BFS crawl: comprehensive sitemap provides good coverage"
+            : "Skipping BFS crawl: sitemap provided sufficient URLs",
           {
             event: "crawler.bfs.skipped",
+            isComprehensive,
             providedUrls: this.sitemapData.size,
             successfullyFetched: this.results.length,
             maxPages: this.config.maxPages,
@@ -237,16 +267,23 @@ export class Crawler {
 
   /**
    * Try to crawl from sitemap
-   * Returns: { usedSitemap: boolean, providedEnoughUrls: boolean }
+   * Returns: { usedSitemap: boolean, providedEnoughUrls: boolean, isComprehensive: boolean }
    * - usedSitemap: whether a sitemap was found and used
-   * - providedEnoughUrls: whether sitemap provided >= maxPages URLs (before fetching)
+   * - providedEnoughUrls: whether sitemap provided >= maxPages URLs
+   * - isComprehensive: whether sitemap has >100 URLs (good coverage)
    */
   private async crawlFromSitemap(): Promise<{
     usedSitemap: boolean;
     providedEnoughUrls: boolean;
+    isComprehensive: boolean;
   }> {
     const sitemapUrl = await discoverSitemap(this.config.url);
-    if (!sitemapUrl) return { usedSitemap: false, providedEnoughUrls: false };
+    if (!sitemapUrl)
+      return {
+        usedSitemap: false,
+        providedEnoughUrls: false,
+        isComprehensive: false,
+      };
 
     this.updateProgress({
       status: "crawling",
@@ -256,57 +293,109 @@ export class Crawler {
       totalPages: this.config.maxPages,
     });
 
-    const sitemapUrls = await fetchAndParseSitemap(
-      sitemapUrl,
-      this.config.maxPages
-    );
+    // Fetch ALL sitemap URLs (no limit - returns all non-variant URLs)
+    // Language filtering happens during sitemap collection
+    const sitemapUrls = await fetchAndParseSitemap(sitemapUrl, 100000);
     if (sitemapUrls.length === 0)
-      return { usedSitemap: false, providedEnoughUrls: false };
+      return {
+        usedSitemap: false,
+        providedEnoughUrls: false,
+        isComprehensive: false,
+      };
 
-    // Track if sitemap provided enough URLs (before fetching fails)
+    // Comprehensive sitemap: >100 URLs means site has good sitemap coverage
+    const isComprehensiveSitemap = sitemapUrls.length >= 100;
     const providedEnoughUrls = sitemapUrls.length >= this.config.maxPages;
 
-    this.logger.info(`Found ${sitemapUrls.length} URLs in sitemap`, {
-      event: "crawler.sitemap.found",
-      urlCount: sitemapUrls.length,
-      sitemapUrl,
-      providedEnoughUrls,
-    });
+    this.logger.info(
+      `Found ${sitemapUrls.length} URLs in sitemap (comprehensive: ${isComprehensiveSitemap})`,
+      {
+        event: "crawler.sitemap.found",
+        urlCount: sitemapUrls.length,
+        sitemapUrl,
+        providedEnoughUrls,
+        isComprehensiveSitemap,
+      }
+    );
 
-    // Sort by priority (highest first) to crawl important pages before hitting limit
-    // Priority is 0.0-1.0, with 1.0 being highest priority
-    sitemapUrls.sort((a, b) => (b.priority || 0.5) - (a.priority || 0.5));
-
-    // Store sitemap data for classification
+    // Store ALL sitemap data for:
+    // 1. Link scoring (uses sitemap priorities)
+    // 2. Whitelist filtering (BFS skip URLs not in sitemap)
     for (const sitemapUrl of sitemapUrls) {
       this.sitemapData.set(normalizeUrl(sitemapUrl.url), sitemapUrl);
     }
 
-    // Filter out language variants before processing
-    const filteredUrls = sitemapUrls.filter(
-      ({ url }) => !isLanguageVariant(url)
-    );
+    // Create minimal PageMetadata objects for scoring (before fetching)
+    const pagesForScoring: PageMetadata[] = sitemapUrls.map((sitemapUrl) => ({
+      url: sitemapUrl.url,
+      title: "", // Not yet fetched
+      depth: getUrlDepth(sitemapUrl.url, this.config.url),
+      internalLinks: [],
+      sitemapPriority: sitemapUrl.priority,
+    }));
 
-    if (filteredUrls.length < sitemapUrls.length) {
-      this.logger.info("Filtered language variants from sitemap", {
-        event: "crawler.sitemap.filter",
-        original: sitemapUrls.length,
-        filtered: filteredUrls.length,
-        removed: sitemapUrls.length - filteredUrls.length,
+    // Score all sitemap URLs using LinkScorer (reuses existing scoring logic)
+    const linkScorer = new LinkScorer({
+      sitemapData: this.sitemapData,
+      robotsDirectives: this.robotsDirectives,
+      minScoreThreshold: 0, // Don't filter yet, we want all URLs sorted
+    });
+
+    const scores = await linkScorer.scoreLinks(pagesForScoring);
+
+    // Convert to sorted array - PRIORITIZE PRIMARY DOMAIN FIRST
+    // Sort by: 1) hostname match, 2) depth, 3) score
+    const baseHostname = new URL(this.config.url).hostname;
+    const scoredUrls = Array.from(scores.entries())
+      .map(([url, score]) => ({
+        url,
+        depth: pagesForScoring.find((p) => p.url === url)?.depth ?? 0,
+        priority: this.sitemapData.get(normalizeUrl(url))?.priority,
+        totalScore: score.totalScore,
+        signals: score.signals,
+        hostname: new URL(url).hostname,
+      }))
+      .sort((a, b) => {
+        // Primary: exact hostname match (www.youtube.com beats artists.youtube)
+        const aMatchesBase = a.hostname === baseHostname;
+        const bMatchesBase = b.hostname === baseHostname;
+        if (aMatchesBase !== bMatchesBase) {
+          return aMatchesBase ? -1 : 1;
+        }
+
+        // Secondary: sort by depth (shallower first)
+        if (a.depth !== b.depth) {
+          return a.depth - b.depth;
+        }
+
+        // Tertiary: sort by total score (higher first)
+        return b.totalScore - a.totalScore;
       });
-    }
+
+    this.logger.info("Sitemap URLs scored and sorted", {
+      event: "crawler.sitemap.scoring",
+      totalUrls: scoredUrls.length,
+      topScores: scoredUrls.slice(0, 10).map((u) => ({
+        url: u.url,
+        depth: u.depth,
+        priority: u.priority,
+        totalScore: u.totalScore.toFixed(1),
+        signals: u.signals,
+      })),
+    });
 
     this.logger.info("Processing sitemap URLs", {
       event: "crawler.sitemap.processing",
-      urlCount: filteredUrls.length,
+      urlCount: Math.min(scoredUrls.length, this.config.maxPages),
+      totalAvailable: scoredUrls.length,
       pagesBefore: this.results.length,
     });
 
-    // Process URLs from sitemap sequentially (fetch at depth 0)
+    // Fetch top N URLs by total score (not just priority)
     let fetchedCount = 0;
-    for (const { url } of filteredUrls) {
+    for (const scored of scoredUrls) {
       if (this.results.length >= this.config.maxPages) break;
-      await this.fetchAndParse(url, 0);
+      await this.fetchAndParse(scored.url, scored.depth);
       fetchedCount++;
     }
 
@@ -315,9 +404,14 @@ export class Crawler {
       pagesAfter: this.results.length,
       urlsProcessed: fetchedCount,
       providedEnoughUrls,
+      isComprehensiveSitemap,
     });
 
-    return { usedSitemap: true, providedEnoughUrls };
+    return {
+      usedSitemap: true,
+      providedEnoughUrls,
+      isComprehensive: isComprehensiveSitemap,
+    };
   }
 
   /**
@@ -342,8 +436,11 @@ export class Crawler {
       this.queue.sort((a, b) => a.depth - b.depth);
 
       // Process in batches for concurrency
+      // Limit batch size to prevent exceeding maxPages
+      const remainingSlots = this.config.maxPages - this.results.length;
+      const batchSize = Math.min(this.config.concurrency, remainingSlots);
       const batch = this.queue
-        .splice(0, this.config.concurrency)
+        .splice(0, batchSize)
         .filter((item) => item.depth <= this.config.maxDepth);
 
       this.logger.debug(`Processing batch ${batchCount}`, {
@@ -430,6 +527,24 @@ export class Crawler {
       return null;
     }
 
+    // Generic sitemap-based filtering: Skip URLs that are NOT in sitemap when:
+    // 1. We have sitemap data (site provides a sitemap)
+    // 2. We're beyond depth 1 (give homepage + immediate children a chance)
+    // Rationale: Sitemaps contain pages the site owner wants crawled.
+    // Links beyond sitemap are often examples/testimonials/user-generated content.
+    if (this.sitemapData.size > 0 && depth > 1) {
+      const isInSitemap = this.sitemapData.has(normalizeUrl(url));
+      if (!isInSitemap) {
+        this.logger.debug("Skipping URL not in sitemap", {
+          event: "crawler.fetch.skip.not_in_sitemap",
+          url,
+          depth,
+          reason: "URL not in sitemap (likely example/testimonial content)",
+        });
+        return null;
+      }
+    }
+
     this.logger.debug("Fetching page", {
       event: "crawler.fetch.start",
       url,
@@ -438,7 +553,9 @@ export class Crawler {
     const normalized = normalizeUrl(url);
 
     // Skip if already visited
-    if (this.visited.has(normalized)) return null;
+    if (this.visited.has(normalized)) {
+      return null;
+    }
     this.visited.add(normalized);
 
     // Check include/exclude patterns (skip homepage to ensure we always get at least one page)
@@ -490,7 +607,7 @@ export class Crawler {
       }
 
       const httpStart = Date.now();
-      const response = await httpClient.get(url, {
+      const response = await this.httpClient.get(url, {
         timeout: this.config.timeout,
         responseType: "text",
         headers: Object.keys(headers).length > 0 ? headers : undefined,
@@ -535,7 +652,9 @@ export class Crawler {
         return null;
       }
 
-      if (response.status < 200 || response.status >= 300) return null;
+      if (response.status < 200 || response.status >= 300) {
+        return null;
+      }
 
       const contentType = response.headers["content-type"];
       if (!contentType?.includes("text/html")) return null;
@@ -554,6 +673,15 @@ export class Crawler {
         depth
       );
       const parseDuration = Date.now() - parseStart;
+
+      // Log discovered links for debugging
+      this.logger.debug("Page parsed with links", {
+        event: "crawler.parse.links",
+        url,
+        depth,
+        internalLinksCount: metadata.internalLinks.length,
+        internalLinks: metadata.internalLinks.slice(0, 5), // First 5 for debugging
+      });
 
       // Duplicate content detection: hash page content (title + description + body text)
       // This catches different URLs serving identical content (e.g., /page vs /page?ref=twitter)
