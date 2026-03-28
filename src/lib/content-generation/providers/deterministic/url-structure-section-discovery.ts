@@ -278,6 +278,10 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
     const firstPage = pages[0];
     const title = firstPage.title || "";
 
+    console.log(
+      `[Section Name] Deriving name for prefix "${prefix}", first page title: "${title}"`
+    );
+
     // Look for section indicators in title (before colons, hyphens, or "- ")
     // Examples:
     // "How YouTube Works: Giving Everyone a Voice" → "How YouTube Works"
@@ -291,6 +295,7 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
         .trim();
 
       if (cleaned.length > 0) {
+        console.log(`[Section Name] ✓ Extracted from colon: "${cleaned}"`);
         return cleaned;
       }
     }
@@ -305,12 +310,17 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
         sectionName.length < 30 &&
         !/youtube|google/i.test(sectionName)
       ) {
+        console.log(
+          `[Section Name] ✓ Extracted from separator: "${sectionName}"`
+        );
         return sectionName;
       }
     }
 
     // Fallback: derive from URL prefix
-    return this.deriveSectionName(prefix);
+    const fallback = this.deriveSectionName(prefix);
+    console.log(`[Section Name] ✗ Using URL fallback: "${fallback}"`);
+    return fallback;
   }
 
   /**
@@ -357,6 +367,22 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
    * Convert a single path segment to a human-readable title
    */
   private segmentToTitle(segment: string): string {
+    // Common concatenated words dictionary (for lowercase URLs without separators)
+    const knownConcatenations: Record<string, string> = {
+      myfamily: "Family",
+      howyoutubeworks: "How YouTube Works",
+      aboutus: "About Us",
+      contactus: "Contact Us",
+      signin: "Sign In",
+      signup: "Sign Up",
+      getstarted: "Get Started",
+    };
+
+    const lowerSegment = segment.toLowerCase();
+    if (knownConcatenations[lowerSegment]) {
+      return knownConcatenations[lowerSegment];
+    }
+
     // Uppercase known acronyms (language-agnostic, small list)
     const acronyms = [
       "api",
@@ -375,7 +401,7 @@ export class UrlStructureSectionDiscovery implements ISectionDiscoveryService {
       "ml",
     ];
 
-    if (acronyms.includes(segment.toLowerCase())) {
+    if (acronyms.includes(lowerSegment)) {
       return segment.toUpperCase();
     }
 

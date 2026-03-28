@@ -54,19 +54,50 @@ export class QualityGateFilter {
     mainSections: LlmsTxtSection[];
     optionalSection?: LlmsTxtSection;
   } {
+    console.log(`[Quality Gates] Input: ${mainSections.length} sections`);
+    mainSections.forEach((s) =>
+      console.log(`  - "${s.title}" (${s.links.length} links)`)
+    );
+
     // Step 1: Filter out excluded URL patterns (user-generated content, etc.)
     const patternFilteredMain = this.filterByUrlPatterns(mainSections);
+    if (patternFilteredMain.length !== mainSections.length) {
+      console.log(
+        `[Quality Gates] Step 1: Pattern filter removed ${mainSections.length - patternFilteredMain.length} sections`
+      );
+    }
 
     // Step 2: Always merge sections with identical titles (fixes duplicates)
     const titleMerged = this.mergeSectionsByTitle(patternFilteredMain);
+    if (titleMerged.length !== patternFilteredMain.length) {
+      console.log(
+        `[Quality Gates] Step 2: Title merge reduced ${patternFilteredMain.length} → ${titleMerged.length} sections`
+      );
+      titleMerged.forEach((s) =>
+        console.log(`  - "${s.title}" (${s.links.length} links)`)
+      );
+    }
 
     // Step 3: Optionally merge by URL patterns (disabled by default - trust AI)
     const mergedSections = this.config.mergeSimilarSections
       ? this.mergeSimilarSections(titleMerged)
       : titleMerged;
+    if (
+      this.config.mergeSimilarSections &&
+      mergedSections.length !== titleMerged.length
+    ) {
+      console.log(
+        `[Quality Gates] Step 3: URL pattern merge reduced ${titleMerged.length} → ${mergedSections.length} sections`
+      );
+    }
 
     // Step 4: Global deduplication across all main sections
     const deduplicatedMain = this.globalDeduplication(mergedSections);
+    if (deduplicatedMain.length !== mergedSections.length) {
+      console.log(
+        `[Quality Gates] Step 4: Deduplication removed ${mergedSections.length - deduplicatedMain.length} sections`
+      );
+    }
 
     // Step 5: Filter and limit Optional section
     let filteredOptional: LlmsTxtSection | undefined = undefined;
@@ -352,6 +383,7 @@ export class QualityGateFilter {
     const deduplicatedSections: LlmsTxtSection[] = [];
 
     for (const section of sections) {
+      const originalLinkCount = section.links.length;
       const uniqueLinks = section.links.filter((link) => {
         if (seenUrls.has(link.url)) {
           return false; // Skip duplicate
@@ -360,12 +392,23 @@ export class QualityGateFilter {
         return true;
       });
 
+      // Log sections that lost links or were removed
+      if (uniqueLinks.length < originalLinkCount) {
+        console.log(
+          `[Quality Gates] Deduplication: "${section.title}" lost ${originalLinkCount - uniqueLinks.length} duplicate links (${originalLinkCount} → ${uniqueLinks.length})`
+        );
+      }
+
       // Only include section if it has links
       if (uniqueLinks.length > 0) {
         deduplicatedSections.push({
           ...section,
           links: uniqueLinks,
         });
+      } else {
+        console.log(
+          `[Quality Gates] ✗ Removed section "${section.title}" - all ${originalLinkCount} links were duplicates`
+        );
       }
     }
 

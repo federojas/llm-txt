@@ -26,25 +26,51 @@ export class PatternTitleCleaner implements ITitleCleaningService {
    * Detects duplicate titles and uses URL slugs as fallback
    */
   async cleanTitles(titles: string[], urls?: string[]): Promise<string[]> {
-    // First pass: detect duplicate titles
+    // First pass: clean all titles
+    const cleanedTitles = titles.map((title) => this.cleanTitle(title));
+
+    // Second pass: detect duplicates in CLEANED titles
     const titleCounts = new Map<string, number>();
-    for (const title of titles) {
+    for (const title of cleanedTitles) {
       const normalized = title.trim().toLowerCase();
       titleCounts.set(normalized, (titleCounts.get(normalized) || 0) + 1);
     }
 
-    // Second pass: clean titles, using URLs for duplicates
-    return titles.map((title, index) => {
-      const cleaned = this.cleanTitle(title);
-      const normalized = cleaned.trim().toLowerCase();
+    // Find duplicates for logging
+    const duplicates = Array.from(titleCounts.entries())
+      .filter(([_, count]) => count > 1)
+      .map(([title, count]) => `"${title}" (${count}x)`);
 
-      // If this title appears multiple times and we have URLs, use URL slug
-      if (titleCounts.get(normalized)! > 1 && urls && urls[index]) {
-        return this.extractTitleFromUrl(urls[index], cleaned);
+    if (duplicates.length > 0) {
+      console.log(
+        `[Title Cleaner] Found ${duplicates.length} duplicate cleaned titles:`,
+        duplicates.slice(0, 3)
+      );
+      console.log(
+        `[Title Cleaner] URLs provided: ${urls ? "YES" : "NO"}, Total titles: ${titles.length}`
+      );
+    }
+
+    // Third pass: extract from URLs for duplicates
+    const result = cleanedTitles.map((cleaned, index) => {
+      const normalized = cleaned.trim().toLowerCase();
+      const count = titleCounts.get(normalized) || 0;
+
+      // If this title appears multiple times and we have URLs, extract from URL slug
+      if (count > 1 && urls && urls[index]) {
+        const extracted = this.extractTitleFromUrl(urls[index], cleaned);
+        if (index < 5 && extracted !== cleaned) {
+          console.log(
+            `[Title Cleaner] ✓ Extracted "${extracted}" from URL (was: "${cleaned}")`
+          );
+        }
+        return extracted;
       }
 
       return cleaned;
     });
+
+    return result;
   }
 
   /**
