@@ -1,12 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { UrlInput } from "@/components/url-input";
+import { UrlInputSimple } from "@/components/url-input-simple";
+import { SettingsSidebar } from "@/components/settings-sidebar";
 import { LoadingState } from "@/components/loading-state";
 import { ResultPreview } from "@/components/result-preview";
 import { LanguageStrategy } from "@/lib/types";
+import { GenerationMode } from "@/lib/api/dtos/llms-txt";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { XCircle } from "lucide-react";
+import { XCircle, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 type JobStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -16,10 +20,37 @@ export default function Home() {
   const [result, setResult] = useState<{
     content: string;
     stats: { pagesFound: number; url: string };
+    requestParams?: {
+      maxPages?: number;
+      maxDepth?: number;
+      generationMode?: "ai" | "metadata";
+      languageStrategy?: "prefer-english" | "page-language";
+      includePatterns?: string[];
+      excludePatterns?: string[];
+      projectName?: string;
+      projectDescription?: string;
+      titleCleanup?: {
+        removePatterns?: string[];
+        replacements?: Array<{ pattern: string; replacement: string }>;
+      };
+    };
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pollAttemptsRef = useRef<number>(0);
+
+  // Settings state
+  const [languageStrategy, setLanguageStrategy] =
+    useState<LanguageStrategy>("prefer-english");
+  const [generationMode, setGenerationMode] =
+    useState<GenerationMode>("metadata");
+  const [maxPages, setMaxPages] = useState<string>("");
+  const [maxDepth, setMaxDepth] = useState<string>("");
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
+  const [excludePatterns, setExcludePatterns] = useState("");
+  const [includePatterns, setIncludePatterns] = useState("");
+  const [showMobileSettings, setShowMobileSettings] = useState(false);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -29,6 +60,43 @@ export default function Home() {
       }
     };
   }, []);
+
+  // Populate settings from requestParams when results are loaded
+  useEffect(() => {
+    if (result?.requestParams) {
+      const params = result.requestParams;
+
+      // Update generation settings
+      if (params.generationMode) {
+        setGenerationMode(params.generationMode);
+      }
+      if (params.languageStrategy) {
+        setLanguageStrategy(params.languageStrategy);
+      }
+      if (params.maxPages !== undefined) {
+        setMaxPages(params.maxPages.toString());
+      }
+      if (params.maxDepth !== undefined) {
+        setMaxDepth(params.maxDepth.toString());
+      }
+
+      // Update overrides
+      if (params.projectName) {
+        setProjectName(params.projectName);
+      }
+      if (params.projectDescription) {
+        setProjectDescription(params.projectDescription);
+      }
+
+      // Update filters
+      if (params.excludePatterns) {
+        setExcludePatterns(params.excludePatterns.join(", "));
+      }
+      if (params.includePatterns) {
+        setIncludePatterns(params.includePatterns.join(", "));
+      }
+    }
+  }, [result]);
 
   // Calculate polling interval with exponential backoff
   // Optimized for 60-90s crawl jobs (industry standard for medium-duration tasks)
@@ -89,6 +157,7 @@ export default function Home() {
             pagesFound: jobData.pagesFound ?? 0,
             url: jobData.url ?? "",
           },
+          requestParams: jobData.requestParams ?? undefined,
         });
       } else if (status === "failed") {
         // Job failed
@@ -135,26 +204,39 @@ export default function Home() {
     }
   };
 
-  const handleGenerate = async (
-    url: string,
-    languageStrategy: LanguageStrategy,
-    options?: {
-      excludePatterns?: string[];
-      includePatterns?: string[];
-      generationMode?: "ai" | "metadata";
-      projectName?: string;
-      projectDescription?: string;
-      maxPages?: number;
-      maxDepth?: number;
-    }
-  ) => {
+  const handleGenerate = async (url: string) => {
     setIsLoading(true);
     setError(null);
     setResult(null);
     setJobStatus(null);
     pollAttemptsRef.current = 0;
+    setShowMobileSettings(false); // Hide settings on mobile after submit
 
     try {
+      // Parse patterns (comma or newline separated)
+      const parsePatterns = (str: string): string[] | undefined => {
+        const trimmed = str.trim();
+        if (!trimmed) return undefined;
+        return trimmed
+          .split(/[,\n]/)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+      };
+
+      const options = {
+        excludePatterns: parsePatterns(excludePatterns),
+        includePatterns: parsePatterns(includePatterns),
+        generationMode: generationMode,
+        projectName: projectName.trim() || undefined,
+        projectDescription: projectDescription.trim() || undefined,
+        maxPages: maxPages
+          ? parseInt(maxPages, 10)
+          : generationMode === "ai"
+            ? 50
+            : undefined,
+        maxDepth: maxDepth ? parseInt(maxDepth, 10) : undefined,
+      };
+
       // Step 1: Create job
       const response = await fetch("/api/v1/llms-txt", {
         method: "POST",
@@ -196,11 +278,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-16">
-        <div className="mb-16 text-center space-y-4">
-          <h1 className="text-6xl font-bold tracking-tight">
+        <div className="mb-12 text-center space-y-4">
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
             llms.txt Generator
           </h1>
-          <p className="mx-auto max-w-2xl text-xl text-muted-foreground leading-relaxed">
+          <p className="mx-auto max-w-2xl text-lg md:text-xl text-muted-foreground leading-relaxed">
             Automatically generate an{" "}
             <a
               href="https://llmstxt.org"
@@ -215,28 +297,95 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="flex flex-col items-center gap-6">
-          {error && (
-            <Alert variant="destructive" className="w-full max-w-3xl">
-              <XCircle className="h-5 w-5" />
-              <AlertTitle>Failed to generate llms.txt</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        {/* Two-column layout: Main content + Sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 items-start">
+          {/* Main Content Area */}
+          <div className="w-full max-w-3xl mx-auto lg:mx-0 space-y-6">
+            {error && (
+              <Alert variant="destructive">
+                <XCircle className="h-5 w-5" />
+                <AlertTitle>Failed to generate llms.txt</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          {!result && !isLoading && (
-            <UrlInput onGenerate={handleGenerate} isLoading={isLoading} />
-          )}
+            {/* Mobile Settings Toggle */}
+            <div className="lg:hidden">
+              <Button
+                onClick={() => setShowMobileSettings(!showMobileSettings)}
+                variant="outline"
+                className="w-full"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                {showMobileSettings ? "Hide Settings" : "Show Settings"}
+              </Button>
+            </div>
 
-          {isLoading && <LoadingState status={jobStatus} />}
+            {/* Mobile Settings Card */}
+            {showMobileSettings && (
+              <Card className="lg:hidden">
+                <CardContent className="pt-6">
+                  <SettingsSidebar
+                    languageStrategy={languageStrategy}
+                    setLanguageStrategy={setLanguageStrategy}
+                    generationMode={generationMode}
+                    setGenerationMode={setGenerationMode}
+                    maxPages={maxPages}
+                    setMaxPages={setMaxPages}
+                    maxDepth={maxDepth}
+                    setMaxDepth={setMaxDepth}
+                    projectName={projectName}
+                    setProjectName={setProjectName}
+                    projectDescription={projectDescription}
+                    setProjectDescription={setProjectDescription}
+                    excludePatterns={excludePatterns}
+                    setExcludePatterns={setExcludePatterns}
+                    includePatterns={includePatterns}
+                    setIncludePatterns={setIncludePatterns}
+                    isLoading={isLoading || !!result}
+                  />
+                </CardContent>
+              </Card>
+            )}
 
-          {result && (
-            <ResultPreview
-              content={result.content}
-              stats={result.stats}
-              onReset={handleReset}
+            {!result && !isLoading && (
+              <UrlInputSimple onSubmit={handleGenerate} isLoading={isLoading} />
+            )}
+
+            {isLoading && <LoadingState status={jobStatus} />}
+
+            {result && (
+              <ResultPreview
+                content={result.content}
+                stats={result.stats}
+                requestParams={result.requestParams}
+                onReset={handleReset}
+              />
+            )}
+          </div>
+
+          {/* Desktop Sidebar - Always Visible on Right */}
+          <div className="hidden lg:block">
+            <SettingsSidebar
+              languageStrategy={languageStrategy}
+              setLanguageStrategy={setLanguageStrategy}
+              generationMode={generationMode}
+              setGenerationMode={setGenerationMode}
+              maxPages={maxPages}
+              setMaxPages={setMaxPages}
+              maxDepth={maxDepth}
+              setMaxDepth={setMaxDepth}
+              projectName={projectName}
+              setProjectName={setProjectName}
+              projectDescription={projectDescription}
+              setProjectDescription={setProjectDescription}
+              excludePatterns={excludePatterns}
+              setExcludePatterns={setExcludePatterns}
+              includePatterns={includePatterns}
+              setIncludePatterns={setIncludePatterns}
+              isLoading={isLoading || !!result}
             />
-          )}
+          </div>
         </div>
       </main>
     </div>

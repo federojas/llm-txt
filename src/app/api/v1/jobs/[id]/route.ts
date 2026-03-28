@@ -54,6 +54,22 @@ export const GET = withRateLimit(
         stats?: { pagesFound?: number };
       } | null;
 
+      // Extract request metadata (parameters used for generation)
+      const requestMetadata = job.requestMetadata as {
+        maxPages?: number;
+        maxDepth?: number;
+        generationMode?: "ai" | "metadata";
+        languageStrategy?: "prefer-english" | "page-language";
+        includePatterns?: string[];
+        excludePatterns?: string[];
+        projectName?: string;
+        projectDescription?: string;
+        titleCleanup?: {
+          removePatterns?: string[];
+          replacements?: Array<{ pattern: string; replacement: string }>;
+        };
+      } | null;
+
       return NextResponse.json(
         successResponse({
           id: job.id,
@@ -62,6 +78,8 @@ export const GET = withRateLimit(
           // Result data (only if completed)
           content: result?.content ?? null,
           pagesFound: result?.stats?.pagesFound ?? null,
+          // Request parameters (what settings were used)
+          requestParams: requestMetadata ?? null,
           // Error (only if failed)
           error: job.error,
           // Timestamps

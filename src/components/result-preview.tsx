@@ -13,6 +13,20 @@ interface ResultPreviewProps {
     pagesFound: number;
     url: string;
   };
+  requestParams?: {
+    maxPages?: number;
+    maxDepth?: number;
+    generationMode?: "ai" | "metadata";
+    languageStrategy?: "prefer-english" | "page-language";
+    includePatterns?: string[];
+    excludePatterns?: string[];
+    projectName?: string;
+    projectDescription?: string;
+    titleCleanup?: {
+      removePatterns?: string[];
+      replacements?: Array<{ pattern: string; replacement: string }>;
+    };
+  };
   onReset: () => void;
 }
 

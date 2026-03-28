@@ -88,3 +88,31 @@ export interface GenerateResponse {
   success: true;
   data: GenerateResponseData;
 }
+
+// Job Status Response DTO
+export interface JobStatusResponseData {
+  id: string;
+  url: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  content: string | null;
+  pagesFound: number | null;
+  requestParams: {
+    maxPages?: number;
+    maxDepth?: number;
+    generationMode?: GenerationMode;
+    languageStrategy?: LanguageStrategy;
+    includePatterns?: string[];
+    excludePatterns?: string[];
+    projectName?: string;
+    projectDescription?: string;
+    titleCleanup?: TitleCleanup;
+  } | null;
+  error: string | null;
+  createdAt: Date;
+  completedAt: Date | null;
+}
+
+export interface JobStatusResponse {
+  success: true;
+  data: JobStatusResponseData;
+}
