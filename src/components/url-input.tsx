@@ -177,14 +177,23 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                       </TooltipTrigger>
                       <TooltipContent side="right" className="max-w-xs">
                         <div className="space-y-2">
-                          <p className="text-xs">
-                            <strong>HTML meta tags:</strong> Faster, good for
-                            most sites
+                          <p className="text-xs text-muted-foreground">
+                            Controls how individual page descriptions are
+                            generated. Project summary is always AI-generated.
                           </p>
-                          <p className="text-xs">
-                            <strong>AI-generated:</strong> Slower, best for
-                            sites with poor metadata
-                          </p>
+                          <div className="space-y-1.5 mt-2">
+                            <p className="text-xs">
+                              <strong>HTML metadata tags:</strong> Fast, uses
+                              existing metadata descriptions. Good for sites
+                              with quality metadata.
+                            </p>
+                            <p className="text-xs">
+                              <strong>AI-generated:</strong> Slower, analyzes
+                              page content to generate context-aware
+                              descriptions. Best for sites with poor/missing
+                              metadata.
+                            </p>
+                          </div>
                         </div>
                       </TooltipContent>
                     </Tooltip>
@@ -227,13 +236,15 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                         <div className="space-y-2">
                           <p className="text-xs">
                             <strong>Prefer English:</strong> Requests English
-                            content first. Falls back to site&apos;s primary
-                            language if unavailable.
+                            via Accept-Language header. Skips non-English pages,
+                            with graceful fallback after 3 consecutive skips
+                            (only if zero English found). Safe for English,
+                            multilingual, and geo-aware sites.
                           </p>
                           <p className="text-xs">
-                            <strong>Site default language:</strong> Accepts
-                            whatever language the server provides. May result in
-                            mixed languages.
+                            <strong>Site default language:</strong> No
+                            filtering, accepts all languages. Use for
+                            non-English-only sites.
                           </p>
                         </div>
                       </TooltipContent>
@@ -273,9 +284,10 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-50">
+                      <TooltipContent side="right" className="max-w-xs">
                         <p className="text-xs">
-                          Maximum pages to crawl (1-200). Default:{" "}
+                          Maximum pages to fetch and parse (1-200). All sitemap
+                          URLs are scored, then top N are fetched. Default:{" "}
                           {generationMode === "ai" ? "50" : "200"}
                         </p>
                       </TooltipContent>
@@ -315,9 +327,12 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-[180px]">
+                      <TooltipContent side="right" className="max-w-xs">
                         <p className="text-xs">
-                          Maximum crawl depth (1-5). Default: 2
+                          Maximum URL path depth (1-5). Controls how deep into
+                          the site structure to crawl. Depth 0 = homepage, depth
+                          1 = /about, depth 2 = /docs/api. Shallower = platform
+                          pages, deeper = articles/posts. Default: 2
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -347,9 +362,10 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-[180px]">
+                      <TooltipContent side="right" className="max-w-xs">
                         <p className="text-xs">
-                          Override auto-detected project/site name
+                          Override auto-detected project name (H1 at top,
+                          detected from site name, og:site_name, or page title)
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -379,9 +395,10 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-[180px]">
+                      <TooltipContent side="right" className="max-w-xs">
                         <p className="text-xs">
-                          Override AI-generated project/site description
+                          Override AI-generated summary (blockquote below H1,
+                          auto-generated from homepage content and metadata)
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -410,44 +427,42 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-45">
+                      <TooltipContent side="right" className="max-w-xs">
                         <div className="space-y-2">
                           <p className="text-xs">
-                            Exclude URLs matching these patterns.
+                            Skip URLs matching these patterns. Useful for
+                            filtering out blogs, legal pages, or marketing
+                            content.
                           </p>
-                          <h4 className="font-medium text-sm">
-                            Pattern Syntax
-                          </h4>
-                          <ul className="space-y-2 text-xs">
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
+                          <p className="text-xs text-muted-foreground">
+                            Note: Exclude takes precedence over include
+                            patterns.
+                          </p>
+                          <h4 className="font-medium text-xs mt-2">Examples</h4>
+                          <ul className="space-y-1 text-xs">
+                            <li className="flex items-start gap-1.5">
+                              <code className="bg-muted px-1 py-0.5 rounded text-[10px] shrink-0">
                                 **/blog/**
                               </code>
-                              <span>Match any path containing /blog/</span>
+                              <span className="text-muted-foreground">
+                                Skip all blog posts
+                              </span>
                             </li>
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
-                                /docs/**
+                            <li className="flex items-start gap-1.5">
+                              <code className="bg-muted px-1 py-0.5 rounded text-[10px] shrink-0">
+                                **/jobs/**
                               </code>
-                              <span>Match paths starting with /docs/</span>
+                              <span className="text-muted-foreground">
+                                Skip career pages
+                              </span>
                             </li>
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
+                            <li className="flex items-start gap-1.5">
+                              <code className="bg-muted px-1 py-0.5 rounded text-[10px] shrink-0">
                                 **.pdf
                               </code>
-                              <span>Match any PDF file</span>
-                            </li>
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
-                                **/watch/**
-                              </code>
-                              <span>Matches anywhere</span>
-                            </li>
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
-                                /watch
-                              </code>
-                              <span>Exact match only</span>
+                              <span className="text-muted-foreground">
+                                Skip PDF files
+                              </span>
                             </li>
                           </ul>
                         </div>
@@ -479,44 +494,42 @@ export function UrlInput({ onGenerate, isLoading }: UrlInputProps) {
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-45">
+                      <TooltipContent side="right" className="max-w-xs">
                         <div className="space-y-2">
                           <p className="text-xs">
-                            Only include URLs matching these patterns.
+                            Only crawl URLs matching these patterns. Useful for
+                            focusing on specific sections like docs or API
+                            reference.
                           </p>
-                          <h4 className="font-medium text-sm">
-                            Pattern Syntax
-                          </h4>
-                          <ul className="space-y-2 text-xs">
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
-                                **/blog/**
+                          <p className="text-xs text-muted-foreground">
+                            Note: Homepage is always included. Exclude patterns
+                            take precedence.
+                          </p>
+                          <h4 className="font-medium text-xs mt-2">Examples</h4>
+                          <ul className="space-y-1 text-xs">
+                            <li className="flex items-start gap-1.5">
+                              <code className="bg-muted px-1 py-0.5 rounded text-[10px] shrink-0">
+                                **/docs/**
                               </code>
-                              <span>Match any path containing /blog/</span>
+                              <span className="text-muted-foreground">
+                                Only documentation pages
+                              </span>
                             </li>
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
-                                /docs/**
+                            <li className="flex items-start gap-1.5">
+                              <code className="bg-muted px-1 py-0.5 rounded text-[10px] shrink-0">
+                                **/api/**
                               </code>
-                              <span>Match paths starting with /docs/</span>
+                              <span className="text-muted-foreground">
+                                Only API reference
+                              </span>
                             </li>
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
-                                **.pdf
+                            <li className="flex items-start gap-1.5">
+                              <code className="bg-muted px-1 py-0.5 rounded text-[10px] shrink-0">
+                                /guides/**
                               </code>
-                              <span>Match any PDF file</span>
-                            </li>
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
-                                **/watch/**
-                              </code>
-                              <span>Matches anywhere</span>
-                            </li>
-                            <li className="flex flex-col gap-1">
-                              <code className="bg-muted px-1.5 py-0.5 rounded">
-                                /watch
-                              </code>
-                              <span>Exact match only</span>
+                              <span className="text-muted-foreground">
+                                Only guides section
+                              </span>
                             </li>
                           </ul>
                         </div>

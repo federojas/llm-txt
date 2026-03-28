@@ -37,6 +37,8 @@ export class Crawler {
   private htmlParser: IHtmlParser;
   private languageDetector: ILanguageDetector;
   private englishPagesFound = 0; // Track English pages for graceful degradation
+  private nonEnglishSkipped = 0; // Track consecutive non-English pages skipped
+  private skippedUrls: Array<{ url: string; depth: number }> = []; // URLs skipped due to language
   private relaxedLanguageMode = false; // Enable fallback to other languages
   private robotsDirectives?: RobotsDirectives; // Robots.txt directives
   private crawlDelay?: number; // Delay between requests (milliseconds)
@@ -724,6 +726,8 @@ export class Crawler {
       if (!isHomepage) {
         const shouldSkip = this.shouldSkipPage(detectedLang, url);
         if (shouldSkip) {
+          // Track skipped URL for potential re-processing if fallback triggers
+          this.skippedUrls.push({ url, depth });
           this.logger.debug("Skipping page by language filter", {
             event: "crawler.fetch.skip.language_filter",
             url,
@@ -830,34 +834,44 @@ export class Crawler {
     if (strategy === "prefer-english") {
       // If page is English, always accept
       if (detectedLang === "en") {
+        this.nonEnglishSkipped = 0; // Reset counter on English content
         return false;
       }
 
-      const totalProcessed = this.visited.size;
-
-      // Graceful degradation: If no English found after 2+ pages, accept primary language
-      // Low threshold ensures we quickly adapt to non-English-only sites
-      if (totalProcessed >= 2 && this.englishPagesFound === 0) {
+      // Graceful degradation: If 3+ consecutive non-English pages skipped, accept primary language
+      // Triggers after homepage + 3 skipped links = fallback on 4th non-English page
+      if (this.nonEnglishSkipped >= 3 && this.englishPagesFound === 0) {
         if (!this.relaxedLanguageMode) {
           this.relaxedLanguageMode = true;
+
+          // Re-queue all previously skipped URLs for re-processing
+          const requeued = this.skippedUrls.length;
+          for (const skipped of this.skippedUrls) {
+            this.queue.push(skipped);
+          }
+          this.skippedUrls = []; // Clear the list
+
           this.logger.warn(
-            `No English content found after ${totalProcessed} pages. Accepting primary site language (${detectedLang}).`,
+            `Skipped ${this.nonEnglishSkipped} consecutive non-English pages. Accepting site's primary language (${detectedLang}). Re-queued ${requeued} skipped URLs.`,
             {
               event: "crawler.language.relaxed_mode",
-              totalProcessed,
+              consecutiveSkips: this.nonEnglishSkipped,
               detectedLanguage: detectedLang,
+              requeuedUrls: requeued,
             }
           );
         }
         return false; // Accept non-English page
       }
 
-      // Otherwise, skip non-English pages (prefer English)
+      // Skip this non-English page and increment counter
+      this.nonEnglishSkipped++;
       this.logger.debug("Skipping non-English page", {
         event: "crawler.language.skip_non_english",
         url,
         detectedLanguage: detectedLang,
         strategy: "prefer-english",
+        consecutiveSkips: this.nonEnglishSkipped,
       });
       return true;
     }
