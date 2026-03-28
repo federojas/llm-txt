@@ -32,8 +32,9 @@ export interface ISectionDiscoveryService {
 /**
  * Title Cleaning Interface
  * Removes redundant suffixes and site names from page titles
+ * Handles duplicate titles by extracting from URLs
  */
 export interface ITitleCleaningService {
-  cleanTitles(titles: string[]): Promise<string[]>;
+  cleanTitles(titles: string[], urls?: string[]): Promise<string[]>;
   isAvailable(): boolean;
 }

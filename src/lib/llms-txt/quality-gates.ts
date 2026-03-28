@@ -19,11 +19,11 @@ export interface QualityGateConfig {
 }
 
 const DEFAULT_CONFIG: QualityGateConfig = {
-  maxOptionalItems: 20, // Real-world sites (e.g., FastHTML) have 15+ optional items
+  maxOptionalItems: 100, // Trust AI clustering - keep overflow content available
   minOptionalRelevance: 30,
   allowDuplicatesInOptional: false,
-  mergeSimilarSections: true,
-  maxLinksPerSection: 10,
+  mergeSimilarSections: false, // Trust AI semantic clustering - don't override it
+  maxLinksPerSection: 50, // High limit - let AI decide importance
   // No default exclusions - rely on sitemap priority and depth scoring instead
   // This keeps the code generic and maintainable
   excludeUrlPatterns: undefined,
@@ -57,15 +57,18 @@ export class QualityGateFilter {
     // Step 1: Filter out excluded URL patterns (user-generated content, etc.)
     const patternFilteredMain = this.filterByUrlPatterns(mainSections);
 
-    // Step 2: Merge similar sections based on URL patterns
-    const mergedSections = this.config.mergeSimilarSections
-      ? this.mergeSimilarSections(patternFilteredMain)
-      : patternFilteredMain;
+    // Step 2: Always merge sections with identical titles (fixes duplicates)
+    const titleMerged = this.mergeSectionsByTitle(patternFilteredMain);
 
-    // Step 3: Global deduplication across all main sections
+    // Step 3: Optionally merge by URL patterns (disabled by default - trust AI)
+    const mergedSections = this.config.mergeSimilarSections
+      ? this.mergeSimilarSections(titleMerged)
+      : titleMerged;
+
+    // Step 4: Global deduplication across all main sections
     const deduplicatedMain = this.globalDeduplication(mergedSections);
 
-    // Step 4: Filter and limit Optional section
+    // Step 5: Filter and limit Optional section
     let filteredOptional: LlmsTxtSection | undefined = undefined;
 
     if (optionalSection && optionalSection.links.length > 0) {
@@ -122,26 +125,24 @@ export class QualityGateFilter {
   }
 
   /**
-   * Merge similar sections based on URL patterns and identical titles
+   * Merge similar sections based on URL patterns
    * Uses path similarity to identify related sections (e.g., /about/* and /howyoutubeworks/*)
    *
    * Algorithm:
-   * 1. First merge sections with identical titles (e.g., two "Overview" sections)
-   * 2. Extract domain-specific patterns from URLs
-   * 3. Group sections by pattern similarity
-   * 4. Merge groups under most representative name
-   * 5. Limit links per merged section
+   * 1. Extract domain-specific patterns from URLs
+   * 2. Group sections by pattern similarity
+   * 3. Merge groups under most representative name
+   * 4. Limit links per merged section
+   *
+   * Note: Sections with identical titles should already be merged before calling this
    */
   private mergeSimilarSections(sections: LlmsTxtSection[]): LlmsTxtSection[] {
     if (sections.length <= 1) {
       return sections;
     }
 
-    // Step 1: Merge sections with identical titles
-    const titleMerged = this.mergeSectionsByTitle(sections);
-
-    // Step 2: Merge by URL pattern similarity
-    const sectionMetadata = titleMerged.map((section) => ({
+    // Merge by URL pattern similarity
+    const sectionMetadata = sections.map((section) => ({
       section,
       urlPatterns: this.extractUrlPatterns(section),
     }));

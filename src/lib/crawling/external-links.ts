@@ -22,7 +22,6 @@ import { IAdBlocker } from "./ad-blocker";
  *
  * This list covers:
  * 1. Social media domains - Direct profile/post links missed by AdBlocker
- * 2. Help/support subdomains - Lower-quality than main docs
  *
  * Note: This is a SUPPLEMENT, not a replacement for AdBlocker.
  * The AdBlocker handles 90%+ of filtering via industry-standard lists (50,000+ rules).
@@ -31,11 +30,14 @@ import { IAdBlocker } from "./ad-blocker";
  * - No npm package exists for "filter direct social media links"
  * - Most libraries are for EMBEDDING social media, not filtering
  * - Our use case is unique to llms.txt generation
- * - List is small (15 domains) and stable (social networks rarely change)
+ * - List is small (12 domains) and stable (social networks rarely change)
  *
- * To override this list, users can:
- * - Use excludePatterns API parameter (runtime override)
- * - Fork and customize this array (build-time override)
+ * To override this list:
+ * - Fork and customize this Set (build-time override)
+ * - Edit the generated llms.txt after creation (post-processing)
+ *
+ * Note: Runtime API override not yet implemented (no user demand).
+ * Open a GitHub issue if you need this feature.
  *
  * ✅ Still allows: GitHub, GitLab, npm, PyPI, Stack Overflow, technical docs
  */
@@ -53,11 +55,6 @@ const ADDITIONAL_EXCLUDED_PATTERNS = new Set([
   "discord.com",
   "discord.gg",
   "t.me",
-  // Help/support subdomains (prefix pattern: help., support., etc.)
-  "help.",
-  "support.",
-  "community.",
-  "forum.",
 ]);
 
 /**

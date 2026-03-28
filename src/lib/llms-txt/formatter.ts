@@ -138,6 +138,27 @@ export class Formatter {
       console.log(
         `[Link Scoring] Filtered ${pages.length} pages → ${filteredPages.length} (threshold: 30) in ${scoringDuration}ms`
       );
+
+      // Log filtered OUT pages for debugging
+      const filtered = pages.filter(
+        (p) => !filteredPages.find((fp) => fp.url === p.url)
+      );
+      if (filtered.length > 0) {
+        console.log(
+          `[Link Scoring] Removed ${filtered.length} low-score pages:`
+        );
+        filtered.slice(0, 10).forEach((p) => {
+          console.log(`  - ${p.title} (${p.url})`);
+        });
+      }
+
+      // Log what we're KEEPING for debugging
+      console.log(`[Link Scoring] Keeping ${filteredPages.length} pages:`);
+      filteredPages.slice(0, 20).forEach((p) => {
+        console.log(
+          `  - [depth=${p.depth}, score=${p.relevanceScore}] ${p.title} (${p.url})`
+        );
+      });
     } else {
       console.log(
         `[Link Scoring] Skipped - no sitemap data (using all ${pages.length} pages)`
@@ -187,8 +208,12 @@ export class Formatter {
       allTitles = this.applyTitleCleanup(allTitles, titleCleanup);
     }
 
-    // Then clean with pattern-based cleaning (removes redundant suffixes like "About - Site - Site")
-    const cleanedTitles = await this.titleCleaning.cleanTitles(allTitles);
+    // Then clean with pattern-based cleaning (removes redundant suffixes, extracts from URLs for duplicates)
+    const allUrls = filteredPages.map((p) => p.url);
+    const cleanedTitles = await this.titleCleaning.cleanTitles(
+      allTitles,
+      allUrls
+    );
     const cleanedTitleMap = new Map<string, string>();
     filteredPages.forEach((page, idx) => {
       cleanedTitleMap.set(page.url, cleanedTitles[idx]);
@@ -241,6 +266,19 @@ export class Formatter {
     console.log(
       `[Timing] Section building: ${buildSectionsDuration}ms (${sections.length} sections created)`
     );
+
+    // Log detailed section breakdown
+    console.log(`\n[Section Breakdown] ${sections.length} sections created:`);
+    sections.forEach((section) => {
+      console.log(`\n  ## ${section.title} (${section.links.length} links)`);
+      section.links.slice(0, 10).forEach((link) => {
+        console.log(`    - ${link.title}`);
+        console.log(`      ${link.url}`);
+      });
+      if (section.links.length > 10) {
+        console.log(`    ... and ${section.links.length - 10} more links`);
+      }
+    });
 
     // Separate optional/secondary content
     const qualityGatesStart = Date.now();
@@ -386,8 +424,10 @@ export class Formatter {
 
     // Clean first part (summary)
     let summary = parts[0].trim();
-    // Strip "FIRST PART:" label if present
-    summary = summary.replace(/^FIRST PART:\s*/i, "");
+    // Strip "FIRST PART:" or "PART 1" labels if present
+    summary = summary.replace(/^(FIRST )?PART ?\d?:\s*/i, "");
+    // Strip leading blockquote marker if AI included it
+    summary = summary.replace(/^>\s*/, "");
 
     if (parts.length === 1) {
       return { summary };
@@ -395,8 +435,8 @@ export class Formatter {
 
     // Clean second part (details)
     let detailsPart = parts[1].trim();
-    // Strip "SECOND PART:" label if present
-    detailsPart = detailsPart.replace(/^SECOND PART:?\s*/i, "");
+    // Strip "SECOND PART:" or "PART 2" labels if present
+    detailsPart = detailsPart.replace(/^(SECOND )?PART ?\d?:?\s*/i, "");
 
     // If details section is "NONE", don't include it
     if (detailsPart === "NONE" || !detailsPart) {
@@ -519,11 +559,11 @@ export class Formatter {
    * Separate optional content from main sections
    * Per llms.txt spec: Optional section contains secondary info that can be skipped
    *
-   * Adaptive strategy:
-   * - For technical sites (docs/API): Keep Overview, Documentation, API as main, rest as optional
-   * - For general sites (YouTube): Keep top sections as main (About, Creators, Legal), rest as optional
-   * - Always limit main sections to avoid overwhelming output
-   * - Apply quality gates to remove duplicates and limit Optional size
+   * Strategy: Trust AI semantic clustering
+   * - AI already determines what's most relevant when creating sections
+   * - Keep all AI-discovered sections as main sections
+   * - Only limit links per section (overflow goes to Optional)
+   * - Apply quality gates to remove duplicates and merge similar sections
    */
   private separateOptionalContent(sections: LlmsTxtSection[]): {
     mainSections: LlmsTxtSection[];
@@ -533,26 +573,9 @@ export class Formatter {
       `[Main/Optional Split] Input sections: ${sections.map((s) => `"${s.title}" (${s.links.length} links)`).join(", ")}`
     );
 
-    // Detect site type by what sections exist
-    const sectionTitles = sections.map((s) => s.title);
-    const hasDocs = sectionTitles.includes("Documentation");
-    const hasAPI = sectionTitles.includes("API Reference");
-    const isTechnicalSite = hasDocs || hasAPI;
-
-    // Define core sections based on site type
-    let coreSections: string[];
-    let maxLinksPerSection: number;
-
-    if (isTechnicalSite) {
-      // Technical site: prioritize docs/API
-      coreSections = ["Overview", "Documentation", "API Reference", "Guides"];
-      maxLinksPerSection = 5;
-    } else {
-      // General site: keep first few sections as main, rest as optional
-      // This adapts to the site's actual structure (About, Creators, Legal, etc.)
-      coreSections = sectionTitles.slice(0, 4); // Keep first 4 sections as main
-      maxLinksPerSection = 10;
-    }
+    // Keep all sections as main sections
+    // Trust AI to decide what's important - only limit to prevent extremely long sections
+    const maxLinksPerSection = 50;
 
     const mainSections: LlmsTxtSection[] = [];
     const optionalLinks: Array<{
@@ -562,20 +585,15 @@ export class Formatter {
     }> = [];
 
     for (const section of sections) {
-      if (coreSections.includes(section.title)) {
-        // Keep as main section but limit links
-        mainSections.push({
-          title: section.title,
-          links: section.links.slice(0, maxLinksPerSection),
-        });
+      // Keep all sections, but limit links per section
+      mainSections.push({
+        title: section.title,
+        links: section.links.slice(0, maxLinksPerSection),
+      });
 
-        // Overflow goes to Optional
-        if (section.links.length > maxLinksPerSection) {
-          optionalLinks.push(...section.links.slice(maxLinksPerSection));
-        }
-      } else {
-        // Secondary sections go to Optional
-        optionalLinks.push(...section.links);
+      // Overflow goes to Optional
+      if (section.links.length > maxLinksPerSection) {
+        optionalLinks.push(...section.links.slice(maxLinksPerSection));
       }
     }
 

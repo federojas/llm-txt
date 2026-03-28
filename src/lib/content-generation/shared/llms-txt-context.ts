@@ -194,3 +194,55 @@ Bad examples:
 - "An amazing tool that will change your life" (hyperbolic)
 `;
 }
+
+/**
+ * Get user prompt for description generation
+ * Provides page metadata and formatting instructions
+ */
+export function getDescriptionUserPrompt(page: {
+  title: string;
+  url: string;
+  description?: string;
+  ogDescription?: string;
+}): string {
+  return `Create a concise description for this page (max 20 words).
+
+Title: ${page.title}
+URL: ${page.url}
+Meta Description: ${page.description || page.ogDescription || "N/A"}
+
+Output only the description, no quotes, no preamble.`;
+}
+
+/**
+ * Get user prompt for business summary generation
+ * Provides homepage metadata and formatting instructions
+ */
+export function getBusinessSummaryUserPrompt(homepage: {
+  siteName?: string;
+  title: string;
+  url: string;
+  ogDescription?: string;
+  description?: string;
+  h1?: string;
+  bodyText?: string;
+}): string {
+  return `Analyze this website homepage and create content for an llms.txt file.
+
+Site Name: ${homepage.siteName || homepage.title}
+URL: ${homepage.url}
+Description: ${homepage.ogDescription || homepage.description || "N/A"}
+H1: ${homepage.h1 || "N/A"}
+Body Text: ${homepage.bodyText?.slice(0, 1500) || "N/A"}
+
+Generate a summary (1-3 sentences): Explain what this product/service is in technical terms. Be specific about core function, technologies, or key capabilities.
+
+Examples:
+- "FastHTML is a Python library combining Starlette, Uvicorn, and HTMX for server-rendered hypermedia applications"
+- "YouTube is a video-sharing platform where users upload, view, rate, share, and comment on videos globally"
+- "Stripe provides payment processing APIs for internet businesses with SDKs for multiple languages"
+
+If the body text contains substantial additional information, add "|||" followed by 2-4 paragraphs of context that helps LLMs understand and assist users. If not, output ONLY the summary.
+
+CRITICAL: Output ONLY the actual content sentences. NO labels, NO headers, NO format instructions in your output.`;
+}

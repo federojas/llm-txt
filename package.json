@@ -68,6 +68,7 @@
     "robots-parser": "^3.0.1",
     "sitemap-parser": "^0.1.0",
     "tailwind-merge": "^3.5.0",
+    "tldts": "^7.0.27",
     "zod": "^4.3.6"
   },
   "devDependencies": {

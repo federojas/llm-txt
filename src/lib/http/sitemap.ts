@@ -6,6 +6,7 @@
 import * as cheerio from "cheerio";
 import { httpClient } from "./client";
 import { normalizeUrl } from "@/lib/url/normalization";
+import { isLanguageVariant } from "../crawling/boundaries";
 
 export interface SitemapUrl {
   url: string;
@@ -122,35 +123,43 @@ export async function fetchAndParseSitemap(
 
     // Check if it's a sitemap index
     if (isSitemapIndex(xmlContent)) {
-      // Fetch and parse child sitemaps dynamically until we have enough URLs
+      // Fetch ALL child sitemaps for comprehensive coverage
       const childUrls = parseSitemapIndex(xmlContent);
       const allUrls: SitemapUrl[] = [];
 
       console.log(
-        `[Sitemap Index] Found ${childUrls.length} child sitemaps, collecting up to ${maxUrls} URLs`
+        `[Sitemap Index] Found ${childUrls.length} child sitemaps, fetching all for comprehensive coverage`
       );
 
+      // Process ALL child sitemaps (don't stop early)
       for (let i = 0; i < childUrls.length; i++) {
-        if (allUrls.length >= maxUrls) {
-          console.log(
-            `[Sitemap Index] Reached target: ${allUrls.length}/${maxUrls} URLs from ${i} child sitemaps`
-          );
-          break;
-        }
-
         const childSitemapUrl = childUrls[i];
         const childResults = await fetchAndParseSitemap(
           childSitemapUrl,
-          maxUrls - allUrls.length
+          10000 // Large limit per child sitemap
         );
-        allUrls.push(...childResults);
 
-        console.log(
-          `[Sitemap Index] Processed ${i + 1}/${childUrls.length} child sitemaps, collected ${allUrls.length}/${maxUrls} URLs`
+        // Filter language variants during collection
+        const nonVariants = childResults.filter(
+          ({ url }) => !isLanguageVariant(url)
         );
+
+        if (nonVariants.length > 0) {
+          allUrls.push(...nonVariants);
+          console.log(
+            `[Sitemap Index] Processed ${i + 1}/${childUrls.length}: ${childResults.length} URLs → ${nonVariants.length} non-variants (total: ${allUrls.length})`
+          );
+        }
       }
 
-      return allUrls.slice(0, maxUrls);
+      console.log(
+        `[Sitemap Index] Collected ${allUrls.length} total non-variant URLs from ${childUrls.length} sitemaps`
+      );
+
+      // Sort by priority (high to low)
+      // Return ALL URLs - let link scoring handle filtering to top N
+      allUrls.sort((a, b) => (b.priority || 0.5) - (a.priority || 0.5));
+      return allUrls;
     }
 
     // Parse regular sitemap

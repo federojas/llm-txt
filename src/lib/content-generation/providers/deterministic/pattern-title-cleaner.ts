@@ -5,11 +5,13 @@ import { ITitleCleaningService } from "../../core/types";
  *
  * Non-AI title cleaner that uses regex patterns to remove redundant text.
  * Cleans page titles by removing site names, separators, and duplicate segments.
+ * Detects duplicate titles and extracts meaningful names from URLs.
  *
  * Advantages:
  * - No API calls (free, fast)
  * - Always available (fallback when AI unavailable)
  * - Language-agnostic (works for any language)
+ * - Handles duplicate titles by using URL slugs
  *
  * Used for all title cleaning (both AI and metadata modes).
  */
@@ -21,9 +23,62 @@ export class PatternTitleCleaner implements ITitleCleaningService {
   /**
    * Clean page titles using regex patterns
    * Removes redundant suffixes, site names, and separators
+   * Detects duplicate titles and uses URL slugs as fallback
    */
-  async cleanTitles(titles: string[]): Promise<string[]> {
-    return titles.map((title) => this.cleanTitle(title));
+  async cleanTitles(titles: string[], urls?: string[]): Promise<string[]> {
+    // First pass: detect duplicate titles
+    const titleCounts = new Map<string, number>();
+    for (const title of titles) {
+      const normalized = title.trim().toLowerCase();
+      titleCounts.set(normalized, (titleCounts.get(normalized) || 0) + 1);
+    }
+
+    // Second pass: clean titles, using URLs for duplicates
+    return titles.map((title, index) => {
+      const cleaned = this.cleanTitle(title);
+      const normalized = cleaned.trim().toLowerCase();
+
+      // If this title appears multiple times and we have URLs, use URL slug
+      if (titleCounts.get(normalized)! > 1 && urls && urls[index]) {
+        return this.extractTitleFromUrl(urls[index], cleaned);
+      }
+
+      return cleaned;
+    });
+  }
+
+  /**
+   * Extract a meaningful title from URL when page title is generic
+   * Examples:
+   * - /news/despacito-most-viewed-video → "Despacito Most Viewed Video"
+   * - /articles/alan-walker → "Alan Walker"
+   */
+  private extractTitleFromUrl(url: string, fallback: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathSegments = urlObj.pathname
+        .split("/")
+        .filter((s) => s.length > 0);
+
+      // Use last segment (the article slug)
+      if (pathSegments.length > 0) {
+        const slug = pathSegments[pathSegments.length - 1];
+
+        // Convert slug to title case
+        const title = slug
+          .split(/[-_]/)
+          .map(
+            (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          )
+          .join(" ");
+
+        return title;
+      }
+    } catch {
+      // Invalid URL, use fallback
+    }
+
+    return fallback;
   }
 
   /**
