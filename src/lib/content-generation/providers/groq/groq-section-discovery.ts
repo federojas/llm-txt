@@ -1,7 +1,10 @@
 import { ISectionDiscoveryService } from "../../core/types";
 import { PageMetadata, SectionGroup } from "@/lib/types";
 import { GroqClient } from "./groq-client";
-import { getSectionDiscoveryPrompt } from "../../shared/llms-txt-context";
+import {
+  getSectionDiscoveryPrompt,
+  getSectionDiscoveryUserPrompt,
+} from "../../shared/llms-txt-context";
 import { MetadataAccumulator } from "../../metadata-accumulator";
 
 /**
@@ -24,14 +27,6 @@ export class GroqSectionDiscovery implements ISectionDiscoveryService {
     pages: PageMetadata[],
     metadataAccumulator?: MetadataAccumulator
   ): Promise<SectionGroup[]> {
-    // Prepare page list for LLM (title + URL + description for better semantic grouping)
-    const pageList = pages
-      .map((page, idx) => {
-        const desc = page.description ? ` - ${page.description}` : "";
-        return `${idx}. [${page.title}](${page.url})${desc}`;
-      })
-      .join("\n");
-
     // Log what we're sending to AI
     console.log(`\n[AI Section Discovery] Analyzing ${pages.length} pages:`);
     pages.slice(0, 30).forEach((page, idx) => {
@@ -56,22 +51,7 @@ export class GroqSectionDiscovery implements ISectionDiscoveryService {
               },
               {
                 role: "user",
-                content: `Analyze these pages and group them into logical sections.
-
-Pages:
-${pageList}
-
-Create 3-10 sections with clear, descriptive names (2-4 words each). Group semantically similar pages together. Each section can have as many pages as needed - don't artificially limit section sizes.
-
-Output as JSON only (no markdown, no explanation):
-{
-  "sections": [
-    {"name": "Section Name", "pageIndexes": [0, 3, 5]},
-    {"name": "Another Section", "pageIndexes": [1, 2, 4]}
-  ]
-}
-
-CRITICAL: Output ONLY valid JSON. Every page index (0-${pages.length - 1}) must appear in exactly one section.`,
+                content: getSectionDiscoveryUserPrompt(pages),
               },
             ],
           })

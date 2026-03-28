@@ -379,16 +379,17 @@ export class Crawler {
           return aMatchesBrand ? -1 : 1;
         }
 
-        // Secondary: within same brand, prioritize exact hostname (www.youtube.com over artists.youtube)
+        // Secondary: sort by depth (shallower first) - PRIORITIZE DEPTH ACROSS ALL SUBDOMAINS
+        // This ensures we get depth-1 URLs from ALL subdomains before depth-2 URLs
+        if (a.depth !== b.depth) {
+          return a.depth - b.depth;
+        }
+
+        // Tertiary: within same depth, prioritize exact hostname (www.youtube.com over artists.youtube)
         const aMatchesHostname = a.hostname === baseHostname;
         const bMatchesHostname = b.hostname === baseHostname;
         if (aMatchesHostname !== bMatchesHostname) {
           return aMatchesHostname ? -1 : 1;
-        }
-
-        // Tertiary: sort by depth (shallower first)
-        if (a.depth !== b.depth) {
-          return a.depth - b.depth;
         }
 
         // Quaternary: sort by total score (higher first)

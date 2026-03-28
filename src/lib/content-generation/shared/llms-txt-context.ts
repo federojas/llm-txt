@@ -154,6 +154,28 @@ ${CONTENT_PRIORITIES}
 ${SECTION_GUIDELINES}
 
 Your task: Group pages into logical sections that help LLMs quickly find what they need.
+
+CRITICAL CLASSIFICATION RULES:
+1. **URL structure is the PRIMARY signal** - Pages with the same URL prefix belong together:
+   - /docs/api/*, /docs/guides/* → "Documentation" section
+   - /blog/2024/*, /blog/2023/* → "Blog" section
+   - /products/*, /products/pricing → "Products" section
+
+2. **Ignore misleading titles** - If title says "Acme Inc - Jobs - Engineering" but URL is /careers/engineering, it belongs in "Careers", NOT "Acme Inc Products"
+
+3. **URL patterns override semantic similarity** - /about/* pages belong together even if titles vary:
+   - /about/mission (Mission Statement)
+   - /about/team (Our Team)
+   - /about/history (Company History)
+   → All belong in "About" section
+
+4. **Subdomain awareness** - Different subdomains may represent different product areas:
+   - docs.example.com/* → "Documentation"
+   - api.example.com/* → "API Reference"
+   - blog.example.com/* → "Blog"
+
+Decision hierarchy: URL prefix > URL subdomain > Page title > Description
+
 Prioritize technical documentation and API references in main sections.
 Move blog posts, changelog, and marketing content to the Optional section.
 `;
@@ -256,4 +278,54 @@ Examples:
 If the body text contains substantial additional information, add "|||" followed by 2-4 paragraphs of context that helps LLMs understand and assist users. If not, output ONLY the summary.
 
 CRITICAL: Output ONLY the actual content sentences. NO labels, NO headers, NO format instructions in your output.`;
+}
+
+/**
+ * Get user prompt for section discovery
+ * Provides page list and grouping instructions
+ */
+export function getSectionDiscoveryUserPrompt(
+  pages: Array<{
+    url: string;
+    title: string;
+    description?: string;
+  }>
+): string {
+  // Format page list with URL-first format for better pattern recognition
+  const pageList = pages
+    .map((page, idx) => {
+      const desc = page.description
+        ? `\n   Description: ${page.description}`
+        : "";
+      return `${idx}. URL: ${page.url}\n   Title: ${page.title}${desc}`;
+    })
+    .join("\n\n");
+
+  return `Analyze these pages and group them into logical sections.
+
+IMPORTANT: **Look at URL patterns FIRST** - pages with the same URL prefix belong in the same section.
+Examples:
+- /docs/api/*, /docs/guides/* → "Documentation"
+- /blog/2024/*, /blog/2023/* → "Blog"
+- /about/mission, /about/team → "About"
+
+Pages:
+${pageList}
+
+Steps:
+1. Identify URL patterns (e.g., /docs/*, /blog/*, /products/*)
+2. Group pages by URL prefix first
+3. Use titles/descriptions only to name sections, NOT to re-classify
+
+Create 3-10 sections with clear, descriptive names (2-4 words each). Each section can have as many pages as needed - don't artificially limit section sizes.
+
+Output as JSON only (no markdown, no explanation):
+{
+  "sections": [
+    {"name": "Section Name", "pageIndexes": [0, 3, 5]},
+    {"name": "Another Section", "pageIndexes": [1, 2, 4]}
+  ]
+}
+
+CRITICAL: Output ONLY valid JSON. Every page index (0-${pages.length - 1}) must appear in exactly one section.`;
 }
